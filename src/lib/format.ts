@@ -33,6 +33,6 @@ export const scope = (s: {
         s.sourceKind === "bluesky" ||
         s.sourceKind === "reddit"
       ? "post"
-      : s.sourceKind === "rss"
+      : s.sourceKind === "rss" || s.sourceKind === "medium"
         ? "article excerpt"
         : "abstract";

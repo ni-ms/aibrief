@@ -1,5 +1,12 @@
 export type SourceKind =
-  "arxiv" | "hn" | "github" | "openreview" | "rss" | "bluesky" | "reddit";
+  | "arxiv"
+  | "hn"
+  | "github"
+  | "openreview"
+  | "rss"
+  | "bluesky"
+  | "reddit"
+  | "medium";
 export interface Source {
   id: string;
   kind: SourceKind;
@@ -15,6 +22,7 @@ export interface Source {
     url?: string;
     actor?: string;
     subreddit?: string;
+    medium?: string;
     sort?: "new" | "hot" | "top";
   };
   lastSuccess: string | null;
@@ -141,7 +149,14 @@ export interface Resource {
   category: "Research" | "Code" | "Discussion" | "Writing" | "Social";
   description: string;
   docs: string;
-  field?: "categories" | "repo" | "venue" | "url" | "actor" | "subreddit";
+  field?:
+    | "categories"
+    | "repo"
+    | "venue"
+    | "url"
+    | "actor"
+    | "subreddit"
+    | "medium";
   placeholder?: string;
   preset?: Source;
   unavailable?: string;

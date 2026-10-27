@@ -116,14 +116,33 @@ export const RESOURCES: Resource[] = [
       "Reddit ends public RSS support on November 13, 2026. An approved API token can be configured on the server.",
   },
   {
+    id: "medium",
+    kind: "medium",
+    name: "Medium",
+    category: "Writing",
+    description:
+      "Articles from Medium authors (@handle), publications, or #tags.",
+    docs: "https://help.medium.com/hc/en-us/articles/214874118-Using-RSS-feeds-of-profiles-publications-and-topics",
+    field: "medium",
+    placeholder: "@karpathy, towards-data-science, or #machine-learning",
+    preset: preset(
+      "medium-tds",
+      "medium",
+      "Medium · towards-data-science",
+      { medium: "towards-data-science" },
+      "medium",
+    ),
+  },
+  {
     id: "rss",
     kind: "rss",
     name: "Blogs & RSS",
     category: "Writing",
-    description: "Articles from public RSS or Atom feeds.",
+    description:
+      "Articles from any blog URL, Substack, research lab, or RSS/Atom feed.",
     docs: "https://www.rssboard.org/rss-specification",
     field: "url",
-    placeholder: "https://example.com/feed.xml",
+    placeholder: "https://lilianweng.github.io or https://example.com/feed.xml",
     preset: preset(
       "rss-huggingface",
       "rss",

@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { ArrowUpRight, Check, Plus, RefreshCw, Search, X } from "lucide-react";
+import { ArrowUpRight, Check, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import type { Resource, Source } from "../../shared/types.ts";
 import { normalizeSubreddit } from "../../shared/reddit.ts";
+import { mediumDisplayName, normalizeMedium } from "../../shared/medium.ts";
+import {
+  detectSmartSource,
+  inferFeedName,
+  normalizeFeedUrl,
+} from "../../shared/feeds.ts";
 import { ago } from "../lib/format";
 import "./sources.css";
 const group = (s: Source) =>
@@ -24,6 +30,8 @@ export function ResourceLibrary({
 }) {
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
+  const [smartInput, setSmartInput] = useState("");
+  const [smartError, setSmartError] = useState("");
   const [error, setError] = useState<{
     resourceId: string;
     message: string;
@@ -40,6 +48,34 @@ export function ResourceLibrary({
       return false;
     } finally {
       setBusy("");
+    }
+  }
+  const detectedPreview = (() => {
+    if (!smartInput.trim()) return null;
+    try {
+      return detectSmartSource(smartInput);
+    } catch {
+      return null;
+    }
+  })();
+  async function handleSmartAdd() {
+    setSmartError("");
+    try {
+      const detected = detectSmartSource(smartInput);
+      const saved = await save({
+        id: `${detected.resourceId}-${crypto.randomUUID().slice(0, 8)}`,
+        kind: detected.kind,
+        resourceId: detected.resourceId,
+        name: detected.name,
+        config: detected.config,
+        enabled: true,
+        lastAttempt: null,
+        lastSuccess: null,
+        error: null,
+      });
+      if (saved) setSmartInput("");
+    } catch (e) {
+      setSmartError((e as Error).message);
     }
   }
   const matchingResources = resources.filter((r) => {
@@ -61,8 +97,9 @@ export function ResourceLibrary({
         <div>
           <h1>Sources</h1>
           <p className="sources-intro">
-            Choose where your reading comes from. Add a feed below to bring its
-            latest posts, papers or releases into Latest.
+            Choose where your reading comes from. Add a feed below or paste any
+            blog URL, Medium @author/#tag, subreddit, or repository to bring its
+            latest updates into Latest.
           </p>
         </div>
         <button className="button" onClick={onRefresh} disabled={syncing}>
@@ -70,6 +107,46 @@ export function ResourceLibrary({
           {syncing ? "Checking sources…" : "Check for updates"}
         </button>
       </div>
+      <form
+        className="smart-source-bar"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleSmartAdd();
+        }}
+      >
+        <div className="smart-source-row">
+          <Sparkles size={15} className="smart-source-icon" />
+          <input
+            type="text"
+            aria-label="Quick add any blog, Medium author, tag, or source URL"
+            placeholder="Quick add any blog URL, Medium @author or #tag, Substack, r/subreddit, or owner/repo…"
+            value={smartInput}
+            onChange={(e) => {
+              setSmartInput(e.target.value);
+              setSmartError("");
+            }}
+            disabled={!!busy}
+          />
+          {detectedPreview && (
+            <span className="smart-source-badge">
+              {detectedPreview.name}
+            </span>
+          )}
+          <button
+            type="submit"
+            className="button primary"
+            disabled={!smartInput.trim() || !!busy}
+          >
+            <Plus size={13} />
+            Add source
+          </button>
+        </div>
+        {smartError && (
+          <p className="error-message smart-source-error" role="alert">
+            {smartError}
+          </p>
+        )}
+      </form>
       <div className="sources-overview">
         <span>
           <strong>{sources.filter((s) => s.enabled).length}</strong> active
@@ -178,10 +255,24 @@ function ResourceCard({
     const previous = sources.find((s) => s.id === editing);
     const raw = input.trim();
     setFormError("");
-    let subreddit: string | undefined;
+    let normalizedValue = raw;
     if (r.field === "subreddit") {
       try {
-        subreddit = normalizeSubreddit(raw);
+        normalizedValue = normalizeSubreddit(raw);
+      } catch (error) {
+        setFormError((error as Error).message);
+        return;
+      }
+    } else if (r.field === "medium") {
+      try {
+        normalizedValue = normalizeMedium(raw);
+      } catch (error) {
+        setFormError((error as Error).message);
+        return;
+      }
+    } else if (r.field === "url") {
+      try {
+        normalizedValue = normalizeFeedUrl(raw);
       } catch (error) {
         setFormError((error as Error).message);
         return;
@@ -197,7 +288,7 @@ function ResourceCard({
                     .split(",")
                     .map((v) => v.trim())
                     .filter(Boolean)
-                : subreddit || raw,
+                : normalizedValue,
           }
         : {}),
     };
@@ -215,11 +306,21 @@ function ResourceCard({
   function configure(value: string) {
     setInput(value);
     setFormError("");
-    if (!customName && r.field === "subreddit") {
-      try {
-        setName(`Reddit · r/${normalizeSubreddit(value)}`);
-      } catch {
-        setName(r.name);
+    if (!customName) {
+      if (r.field === "subreddit") {
+        try {
+          setName(`Reddit · r/${normalizeSubreddit(value)}`);
+        } catch {
+          setName(r.name);
+        }
+      } else if (r.field === "medium") {
+        try {
+          setName(mediumDisplayName(value));
+        } catch {
+          setName(r.name);
+        }
+      } else if (r.field === "url") {
+        setName(inferFeedName(value));
       }
     }
   }
@@ -239,11 +340,13 @@ function ResourceCard({
                     ? "Y"
                     : r.id === "reddit"
                       ? "r/"
-                      : r.id === "bluesky"
-                        ? "B"
-                        : r.id === "x"
-                          ? "𝕏"
-                          : "↗"}
+                      : r.id === "medium"
+                        ? "M"
+                        : r.id === "bluesky"
+                          ? "B"
+                          : r.id === "x"
+                            ? "𝕏"
+                            : "↗"}
         </span>
         <span className="resource-category">{r.category}</span>
         <a
@@ -363,7 +466,9 @@ function ResourceCard({
                     ? "Edit source"
                     : r.id === "reddit"
                       ? "Follow a subreddit"
-                      : `Add ${r.name}`}
+                      : r.id === "medium"
+                        ? "Follow on Medium"
+                        : `Add ${r.name}`}
                 </strong>
                 <button
                   type="button"
@@ -384,9 +489,11 @@ function ResourceCard({
                         ? "Account handle"
                         : r.field === "subreddit"
                           ? "Subreddit name or URL"
-                          : r.field === "url"
-                            ? "Feed URL"
-                            : "Categories"}
+                          : r.field === "medium"
+                            ? "Author (@handle), publication, #tag, or URL"
+                            : r.field === "url"
+                              ? "Blog, Substack, or RSS/Atom URL"
+                              : "Categories"}
                   <input
                     aria-label={`${r.name} configuration`}
                     placeholder={r.placeholder}
@@ -418,6 +525,52 @@ function ResourceCard({
                   )}
                 </div>
               )}
+              {r.id === "medium" && !editing && (
+                <div
+                  className="subreddit-suggestions"
+                  aria-label="Suggested Medium feeds"
+                >
+                  <span>Try</span>
+                  {[
+                    "towards-data-science",
+                    "@karpathy",
+                    "#machine-learning",
+                    "#quantum-computing",
+                  ].map((target) => (
+                    <button
+                      type="button"
+                      key={target}
+                      disabled={!!busy}
+                      onClick={() => configure(target)}
+                    >
+                      {target}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {r.id === "rss" && !editing && (
+                <div
+                  className="subreddit-suggestions"
+                  aria-label="Suggested blogs"
+                >
+                  <span>Try</span>
+                  {[
+                    "huggingface.co/blog",
+                    "lilianweng.github.io",
+                    "simonwillison.net",
+                    "openai.com/news",
+                  ].map((blog) => (
+                    <button
+                      type="button"
+                      key={blog}
+                      disabled={!!busy}
+                      onClick={() => configure(blog)}
+                    >
+                      {blog}
+                    </button>
+                  ))}
+                </div>
+              )}
               <label>
                 Display name
                 <input
@@ -438,6 +591,18 @@ function ResourceCard({
                   to join its discussion on Reddit.
                 </p>
               )}
+              {r.id === "medium" && (
+                <p className="source-form-note">
+                  Collects recent articles from a Medium author (@handle),
+                  publication, or #tag feed.
+                </p>
+              )}
+              {r.id === "rss" && (
+                <p className="source-form-note">
+                  Paste any blog homepage, Substack, or direct RSS/Atom URL;
+                  Fieldnotes automatically resolves or discovers the feed.
+                </p>
+              )}
               {formError && (
                 <p className="error-message" role="alert">
                   {formError}
@@ -455,7 +620,9 @@ function ResourceCard({
                     ? "Save changes"
                     : r.id === "reddit"
                       ? "Follow subreddit"
-                      : "Add source"}
+                      : r.id === "medium"
+                        ? "Follow on Medium"
+                        : "Add source"}
               </button>
               <button
                 type="button"

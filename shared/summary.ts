@@ -35,7 +35,8 @@ export function summaryScope(
   item: Pick<Item, "abstract" | "releaseText" | "sourceKind" | "kind">,
 ) {
   if (!item.abstract && item.releaseText) return "Release excerpt";
-  if (item.sourceKind === "rss") return "Article excerpt";
+  if (item.sourceKind === "rss" || item.sourceKind === "medium")
+    return "Article excerpt";
   if (
     item.sourceKind === "hn" ||
     item.sourceKind === "bluesky" ||

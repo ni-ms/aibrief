@@ -28,7 +28,12 @@ export function normalizeUrl(raw: string): string {
       return `https://arxiv.org/abs/${id}`;
   }
   for (const key of [...url.searchParams.keys()])
-    if (/^(utm_|fbclid$|gclid$|ref$)/i.test(key)) url.searchParams.delete(key);
+    if (
+      /^(utm_|fbclid$|gclid$|ref$)/i.test(key) ||
+      (key.toLowerCase() === "source" &&
+        /^rss/i.test(url.searchParams.get(key) || ""))
+    )
+      url.searchParams.delete(key);
   url.searchParams.sort();
   url.pathname = url.pathname.replace(/\/$/, "") || "/";
   return url.toString();

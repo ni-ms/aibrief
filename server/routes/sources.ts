@@ -4,13 +4,20 @@ import type { Store } from "../db.ts";
 import type { Collector } from "../collector.ts";
 import { RESOURCES } from "../resources.ts";
 import { normalizeSubreddit } from "../../shared/reddit.ts";
+import { normalizeMedium } from "../../shared/medium.ts";
+import { normalizeFeedUrl } from "../../shared/feeds.ts";
 import { redditConnection } from "../sources/reddit.ts";
+import { mediumConnection } from "../sources/medium.ts";
 export function sourcesRoutes(store: Store, collector: Collector) {
   const router = Router();
   router.get("/resources", (_req, res) =>
     res.json(
       RESOURCES.map((r) =>
-        r.id === "reddit" ? { ...r, ...redditConnection() } : r,
+        r.id === "reddit"
+          ? { ...r, ...redditConnection() }
+          : r.id === "medium"
+            ? { ...r, ...mediumConnection() }
+            : r,
       ),
     ),
   );
@@ -24,6 +31,7 @@ export function sourcesRoutes(store: Store, collector: Collector) {
       "rss",
       "bluesky",
       "reddit",
+      "medium",
     ]),
     resourceId: z.string().max(40).optional(),
     name: z.string().min(1).max(100),
@@ -45,6 +53,24 @@ export function sourcesRoutes(store: Store, collector: Collector) {
           }
         })
         .optional(),
+      medium: z
+        .string()
+        .max(300)
+        .transform((value, ctx) => {
+          try {
+            return normalizeMedium(value);
+          } catch (error) {
+            ctx.addIssue({
+              code: "custom",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Invalid Medium source",
+            });
+            return z.NEVER;
+          }
+        })
+        .optional(),
       sort: z.enum(["new", "hot", "top"]).optional(),
       venue: z
         .string()
@@ -55,11 +81,22 @@ export function sourcesRoutes(store: Store, collector: Collector) {
         .regex(/^[a-zA-Z0-9][a-zA-Z0-9.:-]{2,250}$/)
         .optional(),
       url: z
-        .url()
-        .refine((v) => {
-          const u = new URL(v);
-          return u.protocol === "https:" && !u.username && !u.password;
-        }, "Use a public HTTPS feed URL")
+        .string()
+        .max(500)
+        .transform((value, ctx) => {
+          try {
+            return normalizeFeedUrl(value);
+          } catch (error) {
+            ctx.addIssue({
+              code: "custom",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Use a public HTTPS feed URL",
+            });
+            return z.NEVER;
+          }
+        })
         .optional(),
       searchTerms: z.array(z.string().min(1).max(100)).max(6).optional(),
       categories: z
@@ -82,12 +119,13 @@ export function sourcesRoutes(store: Store, collector: Collector) {
       (body.kind === "openreview" && !body.config.venue) ||
       (body.kind === "bluesky" && !body.config.actor) ||
       (body.kind === "reddit" && !body.config.subreddit) ||
+      (body.kind === "medium" && !body.config.medium) ||
       (body.kind === "rss" && !body.config.url)
     )
       return res.status(400).json({ error: "Missing source configuration" });
     const old = store.sources().find((s) => s.id === body.id);
-    if (!old && store.sources().length >= 20)
-      return res.status(400).json({ error: "Maximum 20 configured sources" });
+    if (!old && store.sources().length >= 50)
+      return res.status(400).json({ error: "Maximum 50 configured sources" });
     const changed =
       old && JSON.stringify(old.config) !== JSON.stringify(body.config);
     store.saveSource({

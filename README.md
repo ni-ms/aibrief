@@ -84,7 +84,8 @@ Local AI is preferred by default. Once enabled and cached, it starts automatical
 | GitHub               | Six public releases per configured repository                                              |
 | Hacker News          | Up to 120 new/top/Show HN candidates, filtered locally by interests                        |
 | Reddit               | Up to 40 recent public posts per subreddit; discussion links and supplied post text; approved API token or temporary public Atom feed |
-| Blogs & RSS          | Up to 60 entries from public HTTPS RSS or Atom feeds                                       |
+| Medium               | Up to 40 articles from Medium authors (`@handle`), publications, or `#tags` via public RSS |
+| Blogs & RSS          | Up to 60 entries from public HTTPS RSS/Atom feeds, Substack/DEV/Hashnode/WordPress blogs, or auto-discovered HTML `<link rel="alternate">` feeds |
 | Bluesky              | Up to 40 public posts per configured account, excluding reposts                            |
 | X / Twitter          | Not connected: official reads require paid API credits                                     |
 
