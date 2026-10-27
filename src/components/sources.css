@@ -1,0 +1,178 @@
+.sources-intro {
+  margin-top: 10px;
+  max-width: 590px;
+  color: var(--quiet);
+  font-size: 14px;
+}
+.sources-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+  margin: 24px 0 12px;
+  color: var(--quiet);
+  font-size: 12px;
+}
+.sources-overview strong {
+  color: var(--ink);
+}
+.source-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  padding: 8px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.source-search input {
+  width: 175px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+}
+.resource-page .resource-card {
+  border-radius: 8px;
+  padding: 24px;
+}
+.resource-page .resource-card > p {
+  font-size: 13px;
+  color: #626c58;
+}
+.resource-page .resource-category {
+  color: #69735e;
+  font-size: 10px;
+}
+.resource-letter.reddit {
+  color: #c44a26;
+  background: #fae9df;
+  border-color: #e8c8b7;
+}
+.resource-page .resource-card > .source-transport {
+  min-height: 0;
+  margin-top: 12px;
+  color: #64704e;
+  font-size: 11px;
+  font-weight: 600;
+}
+.resource-page .resource-card > .source-caveat {
+  min-height: 0;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #fff7e9;
+  border-radius: 5px;
+  color: #785c39;
+  font-size: 11px;
+  line-height: 1.65;
+}
+.resource-page .resource-connection {
+  color: #667455;
+  font-size: 12px;
+  gap: 7px;
+}
+.resource-page .quiet-button {
+  color: #536842;
+  font-size: 12px;
+  min-height: 32px;
+}
+.resource-page .connected-feed {
+  gap: 12px;
+}
+.resource-page .feed-name {
+  color: #566746;
+  font-size: 13px;
+}
+.resource-page .feed-sync {
+  color: #77816c;
+  font-size: 10px;
+}
+.resource-page .switch {
+  width: 36px;
+  height: 22px;
+  padding: 4px;
+}
+.resource-page .switch > span {
+  width: 14px;
+  height: 14px;
+}
+.resource-page .source-error {
+  color: #94603b;
+  font-size: 11px;
+}
+.resource-page .form-title {
+  color: #536543;
+  font-size: 13px;
+}
+.resource-page .resource-form label {
+  color: #59674e;
+  font-size: 12px;
+}
+.resource-page .resource-form input {
+  font-size: 13px;
+  padding: 10px;
+}
+.resource-page .resource-form > .button {
+  font-size: 12px;
+  min-height: 38px;
+}
+.source-cancel {
+  margin-left: 16px;
+  font-size: 12px;
+}
+.source-form-note {
+  margin: 12px 0;
+  color: #6e7764;
+  font-size: 11px;
+}
+.subreddit-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+  align-items: center;
+}
+.subreddit-suggestions > span {
+  color: var(--quiet);
+  font-size: 11px;
+}
+.subreddit-suggestions button {
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: #f1f2e9;
+  color: #606e51;
+  font-size: 11px;
+}
+.subreddit-suggestions button:hover {
+  background: #e5eadc;
+}
+.sources-empty {
+  padding: 32px 0;
+  color: var(--quiet);
+}
+.resource-page .footnote {
+  color: #717b65;
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .source-search {
+    margin-left: 0;
+    width: 100%;
+  }
+  .source-search input {
+    width: 100%;
+  }
+  .sources-intro {
+    font-size: 13px;
+  }
+  .resource-page .page-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 18px;
+  }
+  .resource-page .category-tabs {
+    gap: 20px;
+  }
+}

@@ -1,0 +1,566 @@
+.oss-page {
+  padding-bottom: 20px;
+}
+.oss-page .page-title {
+  align-items: flex-end;
+  margin-bottom: 35px;
+}
+.oss-title-dot {
+  color: var(--accent);
+}
+.oss-intro {
+  margin-top: 10px;
+  color: var(--quiet);
+  font-size: 12px;
+}
+.oss-public-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  font: 10px var(--mono);
+  color: var(--quiet);
+}
+.oss-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 40px;
+  border-top: 1px solid var(--line);
+}
+.oss-sidebar {
+  border-right: 1px solid var(--line);
+  padding: 25px 24px 30px 0;
+  min-width: 0;
+}
+.oss-sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.oss-sidebar-title .kicker {
+  font-size: 8px;
+  letter-spacing: 1px;
+  margin: 0;
+}
+.oss-sidebar-title > span:last-child {
+  font: 10px var(--mono);
+  color: var(--quiet);
+}
+.oss-collections {
+  margin: 20px 0 25px;
+}
+.oss-collection {
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  margin-bottom: 6px;
+  border-radius: 3px;
+}
+.oss-collection.selected {
+  background: #edece3;
+  border-color: #e0dfd2;
+}
+.oss-collection-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 11px 5px 11px 9px;
+  text-align: left;
+}
+.oss-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: #e0e2d6;
+  color: #5e6d4c;
+  border-radius: 3px;
+  font: 10px var(--mono);
+  flex-shrink: 0;
+}
+.oss-collection-select > span:last-child {
+  min-width: 0;
+}
+.oss-collection-select strong {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.oss-collection-select small {
+  display: block;
+  color: var(--quiet);
+  font-size: 9px;
+  margin-top: 2px;
+}
+.oss-remove {
+  padding: 6px;
+  color: var(--quiet);
+  align-self: flex-start;
+  margin-top: 7px;
+}
+.oss-remove:hover {
+  color: var(--accent);
+}
+.oss-add {
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+}
+.oss-add label {
+  font-size: 11px;
+  font-weight: 500;
+}
+.oss-add p {
+  font-size: 10px;
+  color: var(--quiet);
+  margin: 5px 0 11px;
+}
+.oss-add input {
+  width: 100%;
+  font: 10px var(--mono);
+  padding: 10px;
+}
+.oss-add .button {
+  margin-top: 9px;
+  width: 100%;
+  font-size: 10px;
+}
+.oss-how {
+  margin-top: 42px;
+  color: #8d917f;
+}
+.oss-how > svg {
+  margin-bottom: 12px;
+}
+.oss-how h2 {
+  font-size: 12px;
+  font-weight: 500;
+  color: #59634e;
+  margin-bottom: 8px;
+}
+.oss-how p,
+.oss-side-note {
+  font-size: 11px;
+  color: var(--quiet);
+  line-height: 1.85;
+}
+.oss-browser {
+  min-width: 0;
+  padding-top: 25px;
+}
+.oss-collection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+.oss-collection-heading .kicker {
+  font-size: 8px;
+  letter-spacing: 1.2px;
+}
+.oss-collection-heading h2 {
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+.oss-collection-heading a {
+  font-weight: 550;
+}
+.oss-collection-heading a svg {
+  margin-left: 5px;
+  color: var(--quiet);
+}
+.oss-collection-heading a:hover {
+  color: var(--accent);
+}
+.oss-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.oss-search {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  flex: 1;
+  min-width: 130px;
+  color: #8c9380;
+}
+.oss-search:focus-within {
+  outline: 2px solid #d84c2b66;
+  outline-offset: 1px;
+}
+.oss-search input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+  padding: 10px;
+}
+.oss-search input:focus {
+  outline: 0;
+}
+.oss-toolbar select {
+  font-size: 10px;
+  padding: 10px 8px;
+  max-width: 160px;
+}
+.oss-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 17px 0;
+}
+.oss-topics button {
+  border: 1px solid transparent;
+  padding: 4px 8px;
+  font-size: 9px;
+  color: var(--quiet);
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.oss-topics button:first-child {
+  margin-left: -8px;
+}
+.oss-topics button:hover {
+  color: var(--ink);
+}
+.oss-topics button.active {
+  color: #536542;
+  border-color: #dce1ce;
+  background: #edf0e4;
+}
+.oss-results-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0 13px;
+  font: 9px var(--mono);
+  color: var(--quiet);
+  line-height: 1.6;
+}
+.oss-project-list {
+  border-top: 1px solid var(--line);
+}
+.oss-project {
+  display: flex;
+  gap: 16px;
+  padding: 25px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: flex-start;
+}
+.oss-project-index {
+  font: 10px var(--mono);
+  color: #a1a391;
+  padding-top: 4px;
+  min-width: 20px;
+}
+.oss-project-content {
+  flex: 1;
+  min-width: 0;
+}
+.oss-project-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.oss-project h3 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.oss-project h3 a > span {
+  font-weight: 400;
+  color: #737d65;
+}
+.oss-project h3 svg {
+  margin-left: 7px;
+  color: #929887;
+}
+.oss-project h3 a:hover,
+.oss-project h3 a:hover > span {
+  color: var(--accent);
+}
+.oss-project-content > p {
+  margin: 8px 0 11px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #616956;
+  overflow-wrap: anywhere;
+  max-width: 780px;
+}
+.oss-project-topics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.oss-project-topics button {
+  border-radius: 2px;
+  background: #eeefe7;
+  color: #748165;
+  padding: 2px 6px;
+  font: 9px var(--mono);
+}
+.oss-project-topics button:hover {
+  background: #e1e6d6;
+  color: #4d5d3c;
+}
+.oss-project-topics > span {
+  font: 9px var(--mono);
+  color: #929887;
+}
+.oss-project-meta {
+  display: flex;
+  gap: 8px 15px;
+  align-items: center;
+  flex-wrap: wrap;
+  font: 9px var(--mono);
+  color: #8a907e;
+}
+.oss-project-meta > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.oss-language {
+  height: 6px;
+  width: 6px;
+  display: inline-block;
+  border-radius: 50%;
+  background: #919d83;
+}
+.oss-language.python {
+  background: #bba25e;
+}
+.oss-language.rust {
+  background: #b47b5e;
+}
+.oss-language.typescript {
+  background: #6c99a4;
+}
+.oss-language.javascript {
+  background: #bbae64;
+}
+.oss-language.c {
+  background: #8e83b1;
+}
+.oss-language.go {
+  background: #66a6a1;
+}
+.oss-archived {
+  font: 8px var(--mono);
+  color: #9b7c55;
+  border: 1px solid #ded4bd;
+  border-radius: 2px;
+  padding: 2px 5px;
+}
+.oss-follow {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 6px 9px;
+  margin-top: 1px;
+}
+.oss-follow.followed {
+  color: #5c7447;
+  background: #edf0e6;
+  border-color: #d8dfca;
+}
+.oss-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  font-size: 11px;
+  background: #f8eee2;
+  border: 1px solid #e9d6bd;
+  color: #8a6137;
+  padding: 12px;
+  margin-bottom: 17px;
+  overflow-wrap: anywhere;
+}
+.oss-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: #8b947f;
+}
+.oss-empty h3 {
+  color: #59634d;
+  margin: 15px 0 7px;
+  font-weight: 450;
+  font-size: 17px;
+}
+.oss-empty p {
+  font-size: 12px;
+}
+.oss-empty button {
+  margin-top: 16px;
+}
+.oss-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 18px 0;
+  font: 10px var(--mono);
+  color: var(--quiet);
+}
+.oss-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.oss-pagination .button {
+  font:
+    10px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+.oss-load-more {
+  text-align: center;
+  padding: 10px 0 22px;
+}
+.oss-load-more p {
+  margin-top: 10px;
+  font-size: 10px;
+  color: var(--quiet);
+}
+.oss-page > .footnote {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 10px;
+}
+@media (min-width: 1500px) {
+  .oss-layout {
+    gap: 55px;
+    grid-template-columns: 275px minmax(0, 1fr);
+  }
+  .oss-project {
+    padding: 28px 0;
+  }
+}
+@media (max-width: 1000px) {
+  .oss-layout {
+    gap: 25px;
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .oss-sidebar {
+    padding-right: 18px;
+  }
+  .oss-project {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .oss-project-content {
+    flex-basis: calc(100% - 35px);
+  }
+  .oss-follow {
+    margin-left: 30px;
+  }
+  .oss-toolbar {
+    flex-wrap: wrap;
+  }
+  .oss-search {
+    flex-basis: 100%;
+  }
+  .oss-public-label {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .oss-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .oss-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 20px 0;
+  }
+  .oss-sidebar-title {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .oss-collections {
+    margin: 12px 0 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .oss-collection {
+    margin: 0;
+    max-width: 100%;
+  }
+  .oss-collection-select {
+    padding: 7px;
+  }
+  .oss-avatar {
+    width: 24px;
+    height: 24px;
+  }
+  .oss-collection-select small {
+    display: none;
+  }
+  .oss-add {
+    padding: 0;
+    border: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .oss-add label {
+    width: 100%;
+    font-size: 10px;
+  }
+  .oss-add p,
+  .oss-how {
+    display: none;
+  }
+  .oss-add input {
+    flex: 1;
+    min-width: 150px;
+    width: auto;
+  }
+  .oss-add .button {
+    width: auto;
+    margin: 0;
+    padding: 10px;
+  }
+  .oss-page .page-title {
+    margin-bottom: 25px;
+  }
+  .oss-collection-heading h2 {
+    font-size: 17px;
+  }
+  .oss-project h3 {
+    font-size: 14px;
+  }
+  .oss-project {
+    padding: 20px 0;
+  }
+  .oss-project-index {
+    font-size: 9px;
+  }
+  .oss-project-meta {
+    gap: 8px 12px;
+  }
+  .oss-results-meta {
+    font-size: 8px;
+  }
+}
