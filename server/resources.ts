@@ -70,6 +70,22 @@ export const RESOURCES: Resource[] = [
     ),
   },
   {
+    id: "hf-papers",
+    kind: "hf-papers",
+    name: "Hugging Face Daily Papers",
+    category: "Research",
+    description:
+      "Daily curated machine learning papers with community upvotes and linked code.",
+    docs: "https://huggingface.co/papers",
+    preset: preset(
+      "hf-daily-papers",
+      "hf-papers",
+      "Hugging Face Daily Papers",
+      {},
+      "hf-papers",
+    ),
+  },
+  {
     id: "github",
     kind: "github",
     name: "GitHub",
@@ -116,6 +132,24 @@ export const RESOURCES: Resource[] = [
       "Reddit ends public RSS support on November 13, 2026. An approved API token can be configured on the server.",
   },
   {
+    id: "lobsters",
+    kind: "lobsters",
+    name: "Lobste.rs",
+    category: "Discussion",
+    description:
+      "Curated technical stories and tag feeds (ai, ml, plt, systems, security).",
+    docs: "https://lobste.rs",
+    field: "lobsters",
+    placeholder: "hottest or tag: ai, ml, plt, distributed, security",
+    preset: preset(
+      "lobsters-hottest",
+      "lobsters",
+      "Lobste.rs · Hottest",
+      { lobsters: "hottest" },
+      "lobsters",
+    ),
+  },
+  {
     id: "medium",
     kind: "medium",
     name: "Medium",
@@ -131,6 +165,24 @@ export const RESOURCES: Resource[] = [
       "Medium · towards-data-science",
       { medium: "towards-data-science" },
       "medium",
+    ),
+  },
+  {
+    id: "substack",
+    kind: "substack",
+    name: "Substack",
+    category: "Writing",
+    description:
+      "Newsletters from Substack authors or publication subdomains.",
+    docs: "https://support.substack.com/hc/en-us/articles/360037833072-Can-I-set-up-an-RSS-feed-for-my-publication-",
+    field: "substack",
+    placeholder: "@handle, importai, or custom newsletter domain",
+    preset: preset(
+      "substack-importai",
+      "substack",
+      "Substack · Import AI",
+      { substack: "importai" },
+      "substack",
     ),
   },
   {

@@ -1,7 +1,7 @@
 // All source defaults live here. Settings edits persist in SQLite; defaults only seed a new database.
 import type { Source } from "../shared/types.ts";
-export const SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
-export const MANUAL_COOLDOWN_MS = 5 * 60 * 1000;
+export const SYNC_INTERVAL_MS = 45 * 60 * 1000;
+export const MANUAL_COOLDOWN_MS = 30 * 1000;
 export const DEFAULT_PROMPT =
   "Follow AI and machine learning, local language models, and quantum computing. Prioritize research papers and practical open-source tools.";
 export const DEFAULT_SOURCES: Source[] = [

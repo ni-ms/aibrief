@@ -8,6 +8,10 @@ import { collectBluesky } from "./bluesky.ts";
 import { collectRSS } from "./rss.ts";
 import { collectReddit } from "./reddit.ts";
 import { collectMedium } from "./medium.ts";
+import { collectHFPapers } from "./hf-papers.ts";
+import { collectSubstack } from "./substack.ts";
+import { collectLobsters } from "./lobsters.ts";
+
 /** Collector orchestration stays here. Each adapter only maps one public format. */
 export async function collect(
   source: Source,
@@ -32,6 +36,12 @@ export async function collect(
       return collectReddit(source, http);
     case "medium":
       return collectMedium(source, http);
+    case "hf-papers":
+      return collectHFPapers(source, http);
+    case "substack":
+      return collectSubstack(source, http);
+    case "lobsters":
+      return collectLobsters(source, http);
     default:
       throw new Error("Unsupported resource type");
   }

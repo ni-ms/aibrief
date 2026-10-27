@@ -3,6 +3,7 @@ import { DEFAULT_PROMPT, DEFAULT_SOURCES } from "./config.ts";
 import { rankStories } from "../shared/ranking.ts";
 import { deriveTerms } from "../shared/interests.ts";
 import { hashContent, normalizeUrl } from "./normalize.ts";
+import { itemClusterKey } from "../shared/trail.ts";
 import type {
   CollectedItem,
   FollowedTopic,
@@ -188,9 +189,44 @@ export class Store {
           .all("local") as Record<string, any>[]
       ).map((r) => [r.group_id, r]),
     );
+    const allItems = this.items();
+    const parent = new Map<number, number>();
+    const find = (i: number): number => {
+      if (!parent.has(i)) parent.set(i, i);
+      if (parent.get(i) !== i) {
+        parent.set(i, find(parent.get(i)!));
+      }
+      return parent.get(i)!;
+    };
+    const union = (i: number, j: number) => {
+      const rootI = find(i);
+      const rootJ = find(j);
+      if (rootI !== rootJ) {
+        parent.set(rootI, rootJ);
+      }
+    };
+
+    const keyToItems = new Map<string, Item[]>();
+    for (const item of allItems) {
+      find(item.groupId);
+      const key = itemClusterKey(item);
+      if (key) {
+        const existing = keyToItems.get(key) || [];
+        for (const other of existing) {
+          if (item.sourceId !== other.sourceId) {
+            union(item.groupId, other.groupId);
+          }
+        }
+        existing.push(item);
+        keyToItems.set(key, existing);
+      }
+    }
+
     const groups = new Map<number, Item[]>();
-    for (const item of this.items())
-      groups.set(item.groupId, [...(groups.get(item.groupId) || []), item]);
+    for (const item of allItems) {
+      const root = find(item.groupId);
+      groups.set(root, [...(groups.get(root) || []), item]);
+    }
     const history = new Map(
       (
         this.db
@@ -200,15 +236,38 @@ export class Store {
           .all() as { item_id: number; changed_at: string }[]
       ).map((row) => [row.item_id, row.changed_at]),
     );
+    const memberships = this.db
+      .prepare("SELECT topic_id,group_id FROM topic_items")
+      .all() as { topic_id: string; group_id: number }[];
+    const topicsByGroup = new Map<number, Set<string>>();
+    for (const row of memberships) {
+      if (!topicsByGroup.has(row.group_id))
+        topicsByGroup.set(row.group_id, new Set());
+      topicsByGroup.get(row.group_id)!.add(row.topic_id);
+    }
+
     const grouped = [...groups.values()].map((items) => {
       const best = [...items].sort(
         (a, b) =>
-          Number(b.sourceKind === "arxiv") - Number(a.sourceKind === "arxiv") ||
+          Number(b.sourceKind === "arxiv" || b.kind === "research") -
+            Number(a.sourceKind === "arxiv" || a.kind === "research") ||
+          Number(b.sourceKind === "github" || b.kind === "tools") -
+            Number(a.sourceKind === "github" || a.kind === "tools") ||
           b.abstract.length +
             b.releaseText.length -
             (a.abstract.length + a.releaseText.length),
       )[0];
+      const clusterGroupIds = items.map((i) => i.groupId);
+      const clusterStates = clusterGroupIds
+        .map((id) => states.get(id))
+        .filter((s): s is Record<string, any> => Boolean(s));
       const state = states.get(best.groupId);
+      const isSaved = clusterStates.some((s) => s.saved);
+      const isDismissed = clusterStates.some((s) => s.dismissed);
+      const feedback = clusterStates.reduce(
+        (acc, s) => (s.feedback !== 0 ? s.feedback : acc),
+        state?.feedback || 0,
+      );
       const version = best.metadata?.arxivVersion;
       const revisionObserved =
         version && version > 1 && best.metadata?.arxivId
@@ -226,6 +285,13 @@ export class Store {
             .map((l) => [l.url, l]),
         ).values(),
       ];
+      const storyTopicIds = [
+        ...new Set(
+          clusterGroupIds.flatMap((gId) => [
+            ...(topicsByGroup.get(gId) || []),
+          ]),
+        ),
+      ];
       return {
         ...best,
         firstSeenAt: items.map((i) => i.firstSeenAt).sort()[0],
@@ -240,26 +306,15 @@ export class Store {
           (!state.read_token ||
             state.read_token ===
               `${best.contentHash}:${best.metadata?.arxivVersion || 0}`),
-        saved: !!state?.saved,
-        dismissed: !!state?.dismissed,
-        feedback: state?.feedback || 0,
+        saved: isSaved,
+        dismissed: isDismissed,
+        feedback,
         score: 0,
         reasons: [],
+        followedTopicIds: storyTopicIds,
       };
     });
-    const memberships = this.db
-      .prepare("SELECT topic_id,group_id FROM topic_items")
-      .all() as { topic_id: string; group_id: number }[];
-    const topicsByGroup = new Map<number, Set<string>>();
-    for (const row of memberships) {
-      if (!topicsByGroup.has(row.group_id))
-        topicsByGroup.set(row.group_id, new Set());
-      topicsByGroup.get(row.group_id)!.add(row.topic_id);
-    }
-    return rankStories(grouped, profile).map((story) => ({
-      ...story,
-      followedTopicIds: [...(topicsByGroup.get(story.groupId) || [])],
-    }));
+    return rankStories(grouped, profile);
   }
   followedTopics(): FollowedTopic[] {
     return (

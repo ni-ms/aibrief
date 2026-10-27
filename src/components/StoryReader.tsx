@@ -20,6 +20,29 @@ import { ResearchTrail } from "./ResearchTrail";
 import { date, scope } from "../lib/format";
 
 const sentences = new Intl.Segmenter("en", { granularity: "sentence" });
+
+function formatParagraphs(text: string): string[] {
+  if (!text) return [];
+  const raw = text.split(/\r?\n\s*\r?\n+/).map((p) => p.trim()).filter(Boolean);
+  if (raw.length > 1) return raw;
+  try {
+    const segmented = [...sentences.segment(text)].map((s) => s.segment.trim()).filter(Boolean);
+    if (segmented.length <= 3) return [text];
+    const grouped: string[] = [];
+    let current: string[] = [];
+    for (const s of segmented) {
+      current.push(s);
+      if (current.length >= 3) {
+        grouped.push(current.join(" "));
+        current = [];
+      }
+    }
+    if (current.length) grouped.push(current.join(" "));
+    return grouped;
+  } catch {
+    return [text];
+  }
+}
 function SummaryPoints({ text }: { text: string }) {
   const lines = text
     .split(/\r?\n+/)
@@ -148,12 +171,29 @@ export function StoryReader({
             Trail
           </button>
         )}
+        {tab === "summary" && (
+          <div className="depth-inline-controls">
+            {(["brief", "standard", "detailed"] as const).map((d) => (
+              <button
+                key={d}
+                className={`depth-tag ${depth === d ? "active" : ""}`}
+                onClick={() => onDepth(d)}
+              >
+                {DEPTH_SETTINGS[d].label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {tab === "trail" ? (
         <ResearchTrail key={s.groupId} groupId={s.groupId} />
       ) : tab === "source" ? (
         <div className="reader-body">
-          <p>{text || "This source provides a title and link only."}</p>
+          {text ? (
+            formatParagraphs(text).map((p, idx) => <p key={idx}>{p}</p>)
+          ) : (
+            <p>This source provides a title and link only.</p>
+          )}
         </div>
       ) : summary ? (
         <div className="reader-body generated">
@@ -210,7 +250,9 @@ export function StoryReader({
           {text && (
             <div className="reader-body source-fallback">
               <div className="generated-label">SOURCE {scope(s)}</div>
-              <p>{text}</p>
+              {formatParagraphs(text).map((p, idx) => (
+                <p key={idx}>{p}</p>
+              ))}
             </div>
           )}
         </div>

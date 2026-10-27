@@ -5,6 +5,7 @@ import type { Collector } from "../collector.ts";
 import { RESOURCES } from "../resources.ts";
 import { normalizeSubreddit } from "../../shared/reddit.ts";
 import { normalizeMedium } from "../../shared/medium.ts";
+import { normalizeSubstack } from "../../shared/substack.ts";
 import { normalizeFeedUrl } from "../../shared/feeds.ts";
 import { redditConnection } from "../sources/reddit.ts";
 import { mediumConnection } from "../sources/medium.ts";
@@ -32,6 +33,9 @@ export function sourcesRoutes(store: Store, collector: Collector) {
       "bluesky",
       "reddit",
       "medium",
+      "hf-papers",
+      "substack",
+      "lobsters",
     ]),
     resourceId: z.string().max(40).optional(),
     name: z.string().min(1).max(100),
@@ -71,6 +75,25 @@ export function sourcesRoutes(store: Store, collector: Collector) {
           }
         })
         .optional(),
+      substack: z
+        .string()
+        .max(300)
+        .transform((value, ctx) => {
+          try {
+            return normalizeSubstack(value);
+          } catch (error) {
+            ctx.addIssue({
+              code: "custom",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Invalid Substack source",
+            });
+            return z.NEVER;
+          }
+        })
+        .optional(),
+      lobsters: z.string().max(100).optional(),
       sort: z.enum(["new", "hot", "top"]).optional(),
       venue: z
         .string()
@@ -120,6 +143,7 @@ export function sourcesRoutes(store: Store, collector: Collector) {
       (body.kind === "bluesky" && !body.config.actor) ||
       (body.kind === "reddit" && !body.config.subreddit) ||
       (body.kind === "medium" && !body.config.medium) ||
+      (body.kind === "substack" && !body.config.substack) ||
       (body.kind === "rss" && !body.config.url)
     )
       return res.status(400).json({ error: "Missing source configuration" });
@@ -137,6 +161,12 @@ export function sourcesRoutes(store: Store, collector: Collector) {
     res.json({ ok: true });
     if (body.enabled && (!old || changed || !old.enabled))
       void collector.refresh(true);
+  });
+  router.post("/sources/:id/refresh", (req, res) => {
+    const source = store.sources().find((s) => s.id === req.params.id);
+    if (!source) return res.status(404).json({ error: "Source not found" });
+    void collector.refreshSource(req.params.id, true);
+    res.status(202).json({ ok: true, syncing: true });
   });
 
   return router;

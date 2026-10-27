@@ -22,6 +22,26 @@ export function arxivIdentity(
     return null;
   }
 }
+const GITHUB_RESERVED = new Set([
+  "features",
+  "pricing",
+  "security",
+  "enterprise",
+  "explore",
+  "topics",
+  "trending",
+  "collections",
+  "events",
+  "readme",
+  "about",
+  "contact",
+  "settings",
+  "login",
+  "signup",
+  "search",
+  "notifications",
+]);
+
 export function githubRepository(raw: string): string | null {
   try {
     const url = new URL(raw);
@@ -33,7 +53,8 @@ export function githubRepository(raw: string): string | null {
     )
       return null;
     const parts = url.pathname.split("/").filter(Boolean);
-    if (parts.length < 2) return null;
+    if (parts.length < 2 || GITHUB_RESERVED.has(parts[0].toLowerCase()))
+      return null;
     const repo = parts[1].replace(/\.git$/, "").replace(/[.,;:!}]+$/, "");
     return /^[a-z0-9_.-]+$/i.test(parts[0]) && /^[a-z0-9_.-]+$/i.test(repo)
       ? `${parts[0]}/${repo}`
@@ -41,6 +62,32 @@ export function githubRepository(raw: string): string | null {
   } catch {
     return null;
   }
+}
+
+export function itemClusterKey(item: {
+  canonicalUrl: string;
+  metadata?: { arxivId?: string };
+  links?: { label: string; url: string }[];
+}): string | null {
+  const fromCanonicalArxiv = arxivIdentity(item.canonicalUrl);
+  if (fromCanonicalArxiv) {
+    return `arxiv:${fromCanonicalArxiv.id}`;
+  }
+  for (const link of item.links || []) {
+    const fromLink = arxivIdentity(link.url);
+    if (fromLink) return `arxiv:${fromLink.id}`;
+  }
+
+  const fromCanonicalGithub = githubRepository(item.canonicalUrl);
+  if (fromCanonicalGithub) {
+    return `github:${fromCanonicalGithub}`;
+  }
+  for (const link of item.links || []) {
+    const fromLink = githubRepository(link.url);
+    if (fromLink) return `github:${fromLink}`;
+  }
+
+  return null;
 }
 export function textUrls(text: string): string[] {
   return [

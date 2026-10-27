@@ -6,7 +6,10 @@ export type SourceKind =
   | "rss"
   | "bluesky"
   | "reddit"
-  | "medium";
+  | "medium"
+  | "hf-papers"
+  | "substack"
+  | "lobsters";
 export interface Source {
   id: string;
   kind: SourceKind;
@@ -23,6 +26,8 @@ export interface Source {
     actor?: string;
     subreddit?: string;
     medium?: string;
+    substack?: string;
+    lobsters?: string;
     sort?: "new" | "hot" | "top";
   };
   lastSuccess: string | null;
@@ -90,6 +95,7 @@ export interface Feed {
   sources: Source[];
   profile: Profile;
   syncing: boolean;
+  syncingSourceIds?: string[];
   collectedAt: string | null;
 }
 export interface TopicCheck {
@@ -156,7 +162,9 @@ export interface Resource {
     | "url"
     | "actor"
     | "subreddit"
-    | "medium";
+    | "medium"
+    | "substack"
+    | "lobsters";
   placeholder?: string;
   preset?: Source;
   unavailable?: string;

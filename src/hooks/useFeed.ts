@@ -52,12 +52,19 @@ export function useFeed() {
     const timer = setTimeout(() => setNotice(""), 4500);
     return () => clearTimeout(timer);
   }, [notice]);
-  async function refresh() {
+  async function refresh(force = true) {
     try {
-      await api("/refresh", "POST");
-      setNotice(
-        "Refreshing. Sources checked in the last 5 minutes use the cache.",
-      );
+      await api("/refresh", "POST", { force });
+      setNotice("Refreshing sources…");
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function refreshSource(sourceId: string) {
+    try {
+      await api(`/sources/${sourceId}/refresh`, "POST");
+      setNotice("Checking source…");
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -117,6 +124,7 @@ export function useFeed() {
     since,
     load,
     refresh,
+    refreshSource,
     act,
     saveSource,
     saveProfile,

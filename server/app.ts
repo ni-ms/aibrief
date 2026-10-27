@@ -14,6 +14,7 @@ import { topicRoutes } from "./routes/topics.ts";
 import { OpenSourceService } from "./open-source.ts";
 import { openSourceRoutes } from "./routes/open-source.ts";
 import { preferenceRoutes } from "./routes/preferences.ts";
+import { handleProxyRequest } from "./routes/proxy.ts";
 export function createApp(
   store: Store,
   collector: Collector,
@@ -34,6 +35,7 @@ export function createApp(
     next();
   });
   app.use(express.json({ limit: "32kb" }));
+  app.get("/api/proxy", (req, res) => handleProxyRequest(req, res));
   const routes = [
     trailRoutes(store, trails),
     feedRoutes(store, collector),

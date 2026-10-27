@@ -6,11 +6,13 @@ import type {
   FollowedTopic,
   TopicCheck,
 } from "../shared/types.ts";
-import { matches } from "../shared/interests.ts";
+import { matches, labelTopics } from "../shared/interests.ts";
 import { MANUAL_COOLDOWN_MS, SYNC_INTERVAL_MS } from "./config.ts";
 import type { Store } from "./db.ts";
 import type { HttpClient } from "./http.ts";
 import { parseArxiv } from "./sources/arxiv.ts";
+import { parseHFPapers } from "./sources/hf-papers.ts";
+import { normalizeUrl, plainText } from "./normalize.ts";
 
 export const queryWords = (query: string) =>
   query.match(/[\p{L}\p{N}]+/gu) || [];
@@ -59,13 +61,34 @@ export class TopicService {
     }
   }
   providers(): DiscoveryProvider[] {
-    return [
+    const upstream: DiscoveryProvider[] = [
       {
         id: "arxiv",
         name: "arXiv · all subjects",
         capability: "upstream",
         enabled: true,
       },
+      {
+        id: "hn-algolia",
+        name: "Hacker News · Algolia",
+        capability: "upstream",
+        enabled: true,
+      },
+      {
+        id: "hf-papers",
+        name: "Hugging Face Papers",
+        capability: "upstream",
+        enabled: true,
+      },
+      {
+        id: "github-search",
+        name: "GitHub Repositories",
+        capability: "upstream",
+        enabled: true,
+      },
+    ];
+    return [
+      ...upstream,
       ...this.store
         .sources()
         .filter((s) => s.kind !== "arxiv")
@@ -138,6 +161,106 @@ export class TopicService {
             providerName: "arXiv",
             origin: "upstream",
           })),
+          check: {
+            lastAttempt,
+            lastSuccess: this.http.checkedAt(url) || lastAttempt,
+            error: null,
+          },
+        };
+      }
+      if (id === "hn-algolia") {
+        const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=30`;
+        const data = (await this.http.json(url, MANUAL_COOLDOWN_MS)) as any;
+        const hits = Array.isArray(data?.hits) ? data.hits : [];
+        const results: DiscoveryResult[] = hits.map((hit: any) => {
+          const title = plainText(hit.title || "");
+          const abstract = plainText(hit.story_text || "");
+          const canonicalUrl = normalizeUrl(
+            hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+          );
+          const isPaper = /arxiv\.org\/(abs|pdf)\//.test(canonicalUrl);
+          const isRepo = /github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/.test(canonicalUrl);
+          return {
+            externalId: `hn:${hit.objectID}`,
+            canonicalUrl,
+            title,
+            abstract,
+            releaseText: "",
+            publishedAt: hit.created_at || new Date().toISOString(),
+            topics: labelTopics(`${title} ${abstract}`),
+            kind: isPaper ? "research" : isRepo ? "tools" : "news",
+            links: [
+              {
+                label: "HN discussion",
+                url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+              },
+            ],
+            providerId: id,
+            providerName: "Hacker News",
+            origin: "upstream",
+            fetchedAt: this.http.checkedAt(url),
+          };
+        });
+        return {
+          results,
+          check: {
+            lastAttempt,
+            lastSuccess: this.http.checkedAt(url) || lastAttempt,
+            error: null,
+          },
+        };
+      }
+      if (id === "hf-papers") {
+        const url = `https://huggingface.co/api/papers/search?q=${encodeURIComponent(query)}`;
+        const data = (await this.http.json(url, MANUAL_COOLDOWN_MS)) as any;
+        const papers = Array.isArray(data) ? data : Array.isArray(data?.papers) ? data.papers : [];
+        const parsed = parseHFPapers(papers);
+        return {
+          results: parsed.map((item) => ({
+            ...item,
+            providerId: id,
+            providerName: "Hugging Face Papers",
+            origin: "upstream",
+            fetchedAt: this.http.checkedAt(url),
+          })),
+          check: {
+            lastAttempt,
+            lastSuccess: this.http.checkedAt(url) || lastAttempt,
+            error: null,
+          },
+        };
+      }
+      if (id === "github-search") {
+        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=updated&per_page=30`;
+        const data = (await this.http.json(url, MANUAL_COOLDOWN_MS)) as any;
+        const repos = Array.isArray(data?.items) ? data.items : [];
+        const results: DiscoveryResult[] = repos.map((repo: any) => {
+          const title = plainText(repo.full_name || repo.name || "");
+          const abstract = plainText(repo.description || "");
+          const canonicalUrl = normalizeUrl(repo.html_url);
+          return {
+            externalId: `github:repo:${repo.id}`,
+            canonicalUrl,
+            title,
+            abstract,
+            releaseText: "",
+            publishedAt: repo.updated_at || new Date().toISOString(),
+            topics: labelTopics(`${title} ${abstract}`),
+            kind: "tools",
+            links: [
+              {
+                label: "GitHub repository",
+                url: repo.html_url,
+              },
+            ],
+            providerId: id,
+            providerName: "GitHub Repositories",
+            origin: "upstream",
+            fetchedAt: this.http.checkedAt(url),
+          };
+        });
+        return {
+          results,
           check: {
             lastAttempt,
             lastSuccess: this.http.checkedAt(url) || lastAttempt,
@@ -243,11 +366,23 @@ export class TopicService {
         lastSuccess: found.check.lastSuccess || prior?.lastSuccess || null,
       };
       try {
-        if (providerId === "arxiv" && found.results.length) {
-          const source = this.store
-            .sources()
-            .find((s) => s.kind === "arxiv" && s.id !== "arxiv-focus")!;
-          this.store.ingest(source, found.results);
+        if (found.results.length) {
+          let source = this.store.sources().find((s) => s.id === providerId);
+          if (!source && providerId === "arxiv") {
+            source = this.store
+              .sources()
+              .find((s) => s.kind === "arxiv" && s.id !== "arxiv-focus");
+          } else if (!source && providerId === "hf-papers") {
+            source = this.store.sources().find((s) => s.kind === "hf-papers") ||
+                     this.store.sources().find((s) => s.kind === "arxiv" && s.id !== "arxiv-focus");
+          } else if (!source && providerId === "hn-algolia") {
+            source = this.store.sources().find((s) => s.kind === "hn");
+          } else if (!source && providerId === "github-search") {
+            source = this.store.sources().find((s) => s.kind === "github");
+          }
+          if (source) {
+            this.store.ingest(source, found.results);
+          }
         }
         this.store.linkTopic(
           id,

@@ -47,3 +47,20 @@ export function selectBriefing(
   }
   return selected.filter((s) => !s.read && !s.dismissed);
 }
+
+export interface CategorizedBriefing {
+  research: Story[];
+  tools: Story[];
+  news: Story[];
+  all: Story[];
+}
+
+export function categorizeBriefing(stories: Story[]): CategorizedBriefing {
+  return {
+    research: stories.filter((s) => s.kind === "research"),
+    tools: stories.filter((s) => s.kind === "tools"),
+    news: stories.filter((s) => s.kind === "news"),
+    all: stories,
+  };
+}
+

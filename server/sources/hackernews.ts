@@ -14,7 +14,17 @@ export function parseHN(row: any, terms: string[]): CollectedItem | null {
     return null;
   const title = plainText(row.title);
   const abstract = plainText(row.text);
-  if (terms.length && !terms.some((t) => matches(`${title} ${abstract}`, t)))
+  const rawUrl = String(row.url || "");
+  const isHighSignal =
+    (typeof row.score === "number" && row.score >= 100) ||
+    /(^|\/|\.)(arxiv\.org|github\.com|huggingface\.co|openreview\.net)($|\/)/i.test(
+      rawUrl,
+    );
+  if (
+    terms.length &&
+    !isHighSignal &&
+    !terms.some((t) => matches(`${title} ${abstract}`, t))
+  )
     return null;
   const canonicalUrl = normalizeUrl(
     row.url || `https://news.ycombinator.com/item?id=${row.id}`,

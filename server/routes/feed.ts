@@ -27,14 +27,16 @@ export function feedRoutes(store: Store, collector: Collector) {
       sources,
       followedTopics: store.followedTopics(),
       syncing: collector.syncing || collector.topics.syncing,
+      syncingSourceIds: collector.syncingSourceIds,
       collectedAt: successes.at(-1) || null,
     });
   });
-  router.post("/refresh", (_req, res) => {
-    void collector.refresh(true);
+  router.post("/refresh", (req, res) => {
+    const force = req.body?.force ?? true;
+    void collector.refresh(true, force);
     res.status(202).json({
       syncing: collector.syncing,
-      note: "Sources checked at most once every five minutes.",
+      note: "Sources checked with fast lane and rate-limited queue.",
     });
   });
   router.post("/visit", (_req, res) => {
