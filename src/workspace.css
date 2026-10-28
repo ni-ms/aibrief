@@ -892,12 +892,34 @@
 }
 
 /* Structured Briefing Sections */
+.briefing-toolbar {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.briefing-title-area h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.briefing-subtitle {
+  font-size: 12px;
+  color: var(--quiet);
+}
+
 .briefing-category-header {
-  padding: 12px 18px 6px 18px;
+  padding: 10px 18px 8px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--sidebar-bg);
+  border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
 

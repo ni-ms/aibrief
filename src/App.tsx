@@ -719,27 +719,6 @@ export default function App() {
             {/* Feed List / Structured Briefing */}
             {searchMode === "library" && (
               <>
-                {/* Structured Briefing Sections when in "For you" */}
-                {mode === "focus" && briefing.length > 0 && filter === "all" && !query && (
-                  <div className="briefing-end" style={{ margin: "8px 16px 0 16px" }}>
-                    <span>Curated daily briefing</span>
-                    {ai.status === "ready" && (
-                      <button
-                        className="text-link"
-                        style={{ display: "flex", alignItems: "center", gap: "4px" }}
-                        onClick={() => void ai.summarize(briefing)}
-                      >
-                        <Sparkles size={12} /> Summarize briefing ({briefing.length})
-                      </button>
-                    )}
-                    {ai.status === "working" && (
-                      <button className="text-link" onClick={ai.cancel}>
-                        Cancel summaries
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {!shown.length ? (
                   <div className="feed-empty" role="status">
                     {feed.data?.syncing || !feed.data ? (
@@ -815,6 +794,101 @@ export default function App() {
                             <Plus size={14} /> Add a source
                           </button>
                         )}
+                      </div>
+                    )}
+                  </div>
+                ) : mode === "focus" && filter === "all" && !query ? (
+                  <div className="briefing-sections">
+                    {/* Header with Batch Summarize */}
+                    <div className="briefing-toolbar">
+                      <div className="briefing-title-area">
+                        <h2>Today's Briefing</h2>
+                        <span className="briefing-subtitle">
+                          {briefing.length} high-signal development{briefing.length === 1 ? "" : "s"} matched to your profile
+                        </span>
+                      </div>
+                      <div className="briefing-actions">
+                        {ai.status === "ready" && (
+                          <button
+                            className="button primary"
+                            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}
+                            onClick={() => void ai.summarize(briefing)}
+                          >
+                            <Sparkles size={14} /> Summarize Briefing ({briefing.length})
+                          </button>
+                        )}
+                        {ai.status === "working" && (
+                          <button
+                            className="button"
+                            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}
+                            onClick={ai.cancel}
+                          >
+                            <RefreshCw size={14} className="spin" /> Summarizing… (Cancel)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Section 1: Key Research & Preprints */}
+                    {categorizedBriefing.research.length > 0 && (
+                      <div className="briefing-section">
+                        <div className="briefing-category-header">
+                          <span className="briefing-category-title">
+                            Key Research & Preprints
+                          </span>
+                          <span className="briefing-category-count">
+                            {categorizedBriefing.research.length}
+                          </span>
+                        </div>
+                        <StoryList
+                          stories={categorizedBriefing.research}
+                          selected={selected?.groupId || null}
+                          onSelect={(s) => setSelection(s.groupId)}
+                          onAction={(s, patch) => void feed.act(s, patch)}
+                          empty="No preprints in this briefing."
+                        />
+                      </div>
+                    )}
+
+                    {/* Section 2: Releases & Open-Source Tools */}
+                    {categorizedBriefing.tools.length > 0 && (
+                      <div className="briefing-section">
+                        <div className="briefing-category-header">
+                          <span className="briefing-category-title">
+                            Releases & Open-Source Tools
+                          </span>
+                          <span className="briefing-category-count">
+                            {categorizedBriefing.tools.length}
+                          </span>
+                        </div>
+                        <StoryList
+                          stories={categorizedBriefing.tools}
+                          selected={selected?.groupId || null}
+                          onSelect={(s) => setSelection(s.groupId)}
+                          onAction={(s, patch) => void feed.act(s, patch)}
+                          empty="No tool releases in this briefing."
+                        />
+                      </div>
+                    )}
+
+                    {/* Section 3: Articles & Community Discussions */}
+                    {categorizedBriefing.news.length > 0 && (
+                      <div className="briefing-section">
+                        <div className="briefing-category-header">
+                          <span className="briefing-category-title">
+                            Articles & Discussions
+                          </span>
+                          <span className="briefing-category-count">
+                            {categorizedBriefing.news.length}
+                          </span>
+                        </div>
+                        <StoryList
+                          stories={categorizedBriefing.news}
+                          selected={selected?.groupId || null}
+                          onSelect={(s) => setSelection(s.groupId)}
+                          onAction={(s, patch) => void feed.act(s, patch)}
+                          empty="No articles or discussions in this briefing."
+                        />
                       </div>
                     )}
                   </div>
