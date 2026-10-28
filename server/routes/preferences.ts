@@ -2,7 +2,14 @@ import { z } from "zod";
 import { Router } from "../router.ts";
 import type { Store } from "../store.ts";
 
-const keys = ["page-size", "summary-depth", "model", "ai-enabled"] as const;
+const keys = [
+  "page-size",
+  "summary-depth",
+  "model",
+  "ai-enabled",
+  "theme",
+  "sidebar-collapsed",
+] as const;
 export function preferenceRoutes(store: Store) {
   const router = Router();
   router.get("/preferences", (_req, res) => {

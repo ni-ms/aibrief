@@ -58,7 +58,9 @@ export default function App() {
   );
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    preferences.set("theme", theme);
+    if (preferences.get("theme") !== theme) {
+      preferences.set("theme", theme);
+    }
   }, [theme]);
 
   const toggleTheme = () =>
@@ -83,7 +85,14 @@ export default function App() {
   const [paperOrder, setPaperOrder] = useState<number[] | null>(null);
   const [selection, setSelection] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"newest" | "relevance">("newest");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => preferences.get("sidebar-collapsed") === "true",
+  );
+  useEffect(() => {
+    if (preferences.get("sidebar-collapsed") !== String(sidebarCollapsed)) {
+      preferences.set("sidebar-collapsed", String(sidebarCollapsed));
+    }
+  }, [sidebarCollapsed]);
 
   const all = feed.data?.stories || [];
   const briefing = useMemo(
