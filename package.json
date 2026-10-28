@@ -15,7 +15,10 @@
     "preview": "vite preview --host 127.0.0.1",
     "build:server": "VITE_STORAGE_MODE=server npm run build",
     "test:browser": "node --conditions=browser --test test/browser-storage.ts",
-    "backup:server": "node scripts/export-local-db.ts"
+    "backup:server": "node scripts/export-local-db.ts",
+    "server:start": "./server.sh start",
+    "server:stop": "./server.sh stop",
+    "server:status": "./server.sh status"
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.85",
