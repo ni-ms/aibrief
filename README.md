@@ -53,6 +53,11 @@ npm run dev:server
 
 Open **http://127.0.0.1:5174**. Vite proxies `/api` to the Node backend on `127.0.0.1:3001`. Both bind to loopback. Port 5174 avoids another local app using 5173.
 
+For background server mode, use `npm run server:start`, `./server.sh status`, and
+`npm run server:stop`. These helpers require `lsof` and only stop the verified
+Fieldnotes process group they started. If you started a server manually, stop it
+with Ctrl+C in its terminal. Occupied ports are reported without closing other apps.
+
 For a single production process:
 
 ```sh

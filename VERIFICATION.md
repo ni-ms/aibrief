@@ -1,5 +1,38 @@
 # Verification
 
+## Pre-release fixes: source removal, feedback, OPML, and server controls
+
+Verified October 28, 2026 (America/Los_Angeles):
+
+- **118 automated tests pass:** 109 feature/API tests and nine browser-storage tests.
+  New regressions cover removed defaults across reopen and browser snapshots,
+  explicit source re-addition, a full Unicode/escaped feedback history over HTTP,
+  unchanged limits on other preferences, OPML entity round trips, and stop-script
+  rejection of unrelated processes, another checkout, and shared process groups.
+- **Browser build passes** with `--base=/aibrief/`; the optional server build and
+  isolated API/restart smoke check also pass. Existing optional WebLLM bundle-size
+  warnings remain.
+- **Browser checks pass** on the plain static production preview with its disposable
+  review library: a fifth long feedback entry saved beyond the former 8,000-character
+  limit and remained after reload with no storage alert; a removed default Qiskit
+  source remained absent after reload while the other configured sources remained.
+- **Server controls:** an actual disposable dummy process group was started,
+  recognized by status, and stopped successfully. Regression tests intercept
+  signals and prove that unrelated port listeners and stale/mismatched PID files
+  receive none. Existing personal servers were not stopped.
+
+Default-source removals now persist as metadata, included in SQLite backups; no
+schema reset is needed. Feedback keeps up to 30 entries and acknowledges success
+only after persistence; a failed save retains the draft and shows a form error.
+Only the feedback endpoint accepts the larger log body. OPML uses XML parsing and
+decodes ordinary attribute entities without expanding document-defined entities.
+
+Deferred to the next release: attaching the correct cached AI summaries to HTML,
+Markdown, and webpage exports. Local audio summaries remain planned. Static browser
+access still depends on upstream CORS permissions; arXiv search and the Hugging Face
+RSS request were blocked in the preceding browser review and worked in server-mode
+tests. These fixes do not change that hosting limitation.
+
 ## Current delivery: browser SQLite and GitHub Pages
 
 Verified October 26, 2026 (America/Los_Angeles):

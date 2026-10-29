@@ -34,6 +34,8 @@ export function createApp(
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   });
+  // The feedback log contains up to 30 suggestions, including escaped Unicode.
+  app.use("/api/preferences/feedback-log", express.json({ limit: "1mb" }));
   app.use(express.json({ limit: "96kb" }));
   app.get("/api/proxy", (req, res) => handleProxyRequest(req, res));
   const routes = [

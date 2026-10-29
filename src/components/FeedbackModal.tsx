@@ -9,6 +9,7 @@ import {
 import type { FeedbackSubmission } from "../../shared/types.ts";
 import { preferences } from "../lib/preferences";
 import { feedbackFormUrl } from "../lib/project-config";
+import { FEEDBACK_HISTORY_LIMIT } from "../../shared/feedback.ts";
 
 export function FeedbackModal({
   open,
@@ -22,6 +23,8 @@ export function FeedbackModal({
   const [message, setMessage] = useState("");
   const [exampleUrl, setExampleUrl] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [submissions, setSubmissions] = useState<FeedbackSubmission[]>(() => {
     try {
       return JSON.parse(preferences.get("feedback-log") || "[]");
@@ -32,7 +35,7 @@ export function FeedbackModal({
 
   if (!open) return null;
 
-  function saveSubmissionLocally(): FeedbackSubmission | null {
+  async function saveSubmissionLocally(): Promise<FeedbackSubmission | null> {
     if (!message.trim()) return null;
     const entry: FeedbackSubmission = {
       id: crypto.randomUUID().slice(0, 8),
@@ -41,34 +44,55 @@ export function FeedbackModal({
       ...(exampleUrl.trim() ? { url: exampleUrl.trim() } : {}),
       createdAt: new Date().toISOString(),
     };
-    const next = [entry, ...submissions].slice(0, 30);
+    const next = [entry, ...submissions].slice(0, FEEDBACK_HISTORY_LIMIT);
+    await preferences.save("feedback-log", JSON.stringify(next));
     setSubmissions(next);
-    preferences.set("feedback-log", JSON.stringify(next));
     return entry;
   }
 
-  function handleSaveLocal(e: React.FormEvent) {
+  async function handleSaveLocal(e: React.FormEvent) {
     e.preventDefault();
-    const entry = saveSubmissionLocally();
-    if (!entry) return;
-    setMessage("");
-    setExampleUrl("");
-    setSavedNotice("Saved your suggestion locally.");
-    setTimeout(() => setSavedNotice(""), 3000);
+    if (saving) return;
+    setSaving(true);
+    setSaveError("");
+    setSavedNotice("");
+    try {
+      const entry = await saveSubmissionLocally();
+      if (!entry) return;
+      setMessage("");
+      setExampleUrl("");
+      setSavedNotice("Saved your suggestion locally.");
+      setTimeout(() => setSavedNotice(""), 3000);
+    } catch (error) {
+      setSaveError(
+        `Could not save your suggestion: ${(error as Error).message}`,
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleOpenGoogleForm() {
-    if (!feedbackFormUrl || !message.trim()) return;
-    saveSubmissionLocally();
+    if (!feedbackFormUrl || !message.trim() || saving) return;
+    setSaving(true);
+    setSaveError("");
+    setSavedNotice("");
     const summaryText = `[${category.toUpperCase()}] ${message.trim()}${
       exampleUrl.trim() ? `\nURL: ${exampleUrl.trim()}` : ""
     }`;
     // Start copying while this tab still has focus, without delaying the new tab.
-    const copy = navigator.clipboard?.writeText(summaryText);
+    const copy = navigator.clipboard?.writeText(summaryText).then(
+      () => true,
+      () => false,
+    );
     window.open(feedbackFormUrl, "_blank", "noopener,noreferrer");
     try {
-      if (!copy) throw new Error("Clipboard unavailable");
-      await copy;
+      await saveSubmissionLocally();
+    } catch (error) {
+      setSaveError(`Could not save a local copy: ${(error as Error).message}`);
+    }
+    try {
+      if (!(await copy)) throw new Error("Clipboard unavailable");
       setSavedNotice(
         "Your suggestion was copied. Paste it into the Google Form that opened, then submit it there.",
       );
@@ -76,6 +100,8 @@ export function FeedbackModal({
       setSavedNotice(
         "The Google Form opened. Copy your suggestion above and paste it into the form.",
       );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -143,12 +169,13 @@ export function FeedbackModal({
         </p>
 
         <form
-          onSubmit={handleSaveLocal}
+          onSubmit={(e) => void handleSaveLocal(e)}
           style={{ display: "flex", flexDirection: "column", gap: "12px" }}
         >
           <label style={{ fontSize: "12px", fontWeight: 500 }}>
             Category
             <select
+              disabled={saving}
               value={category}
               onChange={(e) =>
                 setCategory(e.target.value as FeedbackSubmission["category"])
@@ -166,6 +193,7 @@ export function FeedbackModal({
           <label style={{ fontSize: "12px", fontWeight: 500 }}>
             What would make Fieldnotes better?
             <textarea
+              disabled={saving}
               required
               rows={4}
               maxLength={2000}
@@ -180,6 +208,8 @@ export function FeedbackModal({
             Example URL or feed address (optional)
             <input
               type="text"
+              maxLength={500}
+              disabled={saving}
               placeholder="https://example.com/blog or @author"
               value={exampleUrl}
               onChange={(e) => setExampleUrl(e.target.value)}
@@ -196,6 +226,11 @@ export function FeedbackModal({
               {savedNotice}
             </p>
           )}
+          {saveError && (
+            <p className="error-message" role="alert">
+              {saveError}
+            </p>
+          )}
 
           <div
             style={{
@@ -209,13 +244,18 @@ export function FeedbackModal({
             <button
               type="button"
               className="button primary"
-              disabled={!message.trim() || !feedbackFormUrl}
+              disabled={saving || !message.trim() || !feedbackFormUrl}
               onClick={() => void handleOpenGoogleForm()}
             >
               <ExternalLink size={13} /> Copy & open Google Form
             </button>
-            <button type="submit" className="button" disabled={!message.trim()}>
-              <Check size={13} /> Save suggestion locally
+            <button
+              type="submit"
+              className="button"
+              disabled={saving || !message.trim()}
+            >
+              <Check size={13} />{" "}
+              {saving ? "Saving…" : "Save suggestion locally"}
             </button>
           </div>
         </form>

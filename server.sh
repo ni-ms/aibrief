@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PID_FILE="$SCRIPT_DIR/.server.pid"
 LOG_FILE="$SCRIPT_DIR/server.log"
 API_PORT="${PORT:-3001}"
@@ -31,34 +31,27 @@ detect_web_port() {
       return
     fi
   fi
-  # Fallback to checking default Vite ports
-  for p in 5174 5173 5175 5176; do
-    if [[ -n "$(find_listening_pid "$p")" ]]; then
-      echo "$p"
-      return
-    fi
-  done
   echo "5174"
 }
 
+tracked_server_pid() {
+  [[ -f "$PID_FILE" ]] || return 1
+  local pid command cwd group
+  pid=$(cat "$PID_FILE" 2>/dev/null || true)
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  command=$(ps -p "$pid" -o command= 2>/dev/null || true)
+  [[ "$command" == *"npm run dev:server"* ]] || return 1
+  cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' || true)
+  [[ "$cwd" == "$SCRIPT_DIR" ]] || return 1
+  group=$(ps -p "$pid" -o pgid= 2>/dev/null | tr -d '[:space:]')
+  # start_server creates a dedicated process group. Never signal our own group.
+  [[ "$group" == "$pid" ]] || return 1
+  echo "$pid"
+}
+
 is_running() {
-  # Check if PID file exists and process is alive
-  if [[ -f "$PID_FILE" ]]; then
-    local pid
-    pid=$(cat "$PID_FILE" 2>/dev/null || true)
-    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-      return 0
-    fi
-  fi
-
-  # Check if backend port is listening
-  local api_pid
-  api_pid=$(find_listening_pid "$API_PORT")
-  if [[ -n "$api_pid" ]]; then
-    return 0
-  fi
-
-  return 1
+  tracked_server_pid >/dev/null
 }
 
 start_server() {
@@ -71,6 +64,18 @@ start_server() {
     echo -e "  ${BOLD}Logs:${NC}     ${LOG_FILE}"
     return 0
   fi
+
+  if ! command -v lsof >/dev/null 2>&1; then
+    echo "lsof is required to identify Fieldnotes processes safely."
+    return 1
+  fi
+  local port
+  for port in "$API_PORT" 5174; do
+    if [[ -n "$(find_listening_pid "$port")" ]]; then
+      echo "Port $port is already in use. Stop that process explicitly before starting Fieldnotes."
+      return 1
+    fi
+  done
 
   echo -e "${CYAN}Starting Fieldnotes servers (API + Web)...${NC}"
   cd "$SCRIPT_DIR"
@@ -113,69 +118,23 @@ start_server() {
 }
 
 stop_server() {
-  local stopped_any=0
-
-  # 1. Kill tracked PID from file if alive
-  if [[ -f "$PID_FILE" ]]; then
-    local pid
-    pid=$(cat "$PID_FILE" 2>/dev/null || true)
-    if [[ -n "$pid" ]]; then
-      if kill -0 "$pid" 2>/dev/null; then
-        echo -e "${CYAN}Stopping Fieldnotes server (PID ${pid})...${NC}"
-        # Kill the whole process group
-        kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-        stopped_any=1
-      fi
-    fi
+  local pid
+  pid=$(tracked_server_pid || true)
+  if [[ -z "$pid" ]]; then
     rm -f "$PID_FILE"
+    echo -e "${YELLOW}No managed Fieldnotes server is running. Other processes were left alone.${NC}"
+    return 0
   fi
 
-  # 2. Stop any remaining processes listening on ports
-  local api_pid
-  api_pid=$(find_listening_pid "$API_PORT")
-  if [[ -n "$api_pid" ]]; then
-    echo -e "${CYAN}Stopping process on API port ${API_PORT} (PID ${api_pid})...${NC}"
-    kill -TERM "$api_pid" 2>/dev/null || true
-    stopped_any=1
-  fi
-
-  for p in 5173 5174 5175 5176; do
-    local wp
-    wp=$(find_listening_pid "$p")
-    if [[ -n "$wp" ]]; then
-      # Make sure it's node/vite before killing
-      local cmd
-      cmd=$(ps -p "$wp" -o comm= 2>/dev/null || true)
-      if [[ "$cmd" =~ node|vite ]]; then
-        echo -e "${CYAN}Stopping process on Web port ${p} (PID ${wp})...${NC}"
-        kill -TERM "$wp" 2>/dev/null || true
-        stopped_any=1
-      fi
-    fi
-  done
-
-  # Wait a moment for graceful exit
+  echo -e "${CYAN}Stopping Fieldnotes server group (PID ${pid})...${NC}"
+  kill -TERM -"$pid" 2>/dev/null || true
   sleep 1
-
-  # Force kill if still holding ports
-  api_pid=$(find_listening_pid "$API_PORT")
-  if [[ -n "$api_pid" ]]; then
-    kill -9 "$api_pid" 2>/dev/null || true
+  # Escalate only while the same validated group leader is still present.
+  if [[ "$(tracked_server_pid || true)" == "$pid" ]]; then
+    kill -KILL -"$pid" 2>/dev/null || true
   fi
-
-  for p in 5173 5174 5175 5176; do
-    local wp
-    wp=$(find_listening_pid "$p")
-    if [[ -n "$wp" ]]; then
-      kill -9 "$wp" 2>/dev/null || true
-    fi
-  done
-
-  if [[ $stopped_any -eq 1 ]]; then
-    echo -e "${GREEN}${BOLD}✓ Fieldnotes servers stopped.${NC}"
-  else
-    echo -e "${YELLOW}Fieldnotes servers were not running.${NC}"
-  fi
+  rm -f "$PID_FILE"
+  echo -e "${GREEN}${BOLD}✓ Fieldnotes servers stopped.${NC}"
 }
 
 status_server() {

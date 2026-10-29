@@ -30,6 +30,37 @@ function database(bytes?: Uint8Array) {
   return db;
 }
 
+test("browser snapshots retain default source removals and a full feedback history", async () => {
+  const db = database();
+  const store = new Store(db);
+  const removed = store.sources()[0];
+  store.removeSource(removed.id);
+  const runtime = createBrowserRuntime(store);
+  const entries = Array.from({ length: 30 }, (_, id) => ({
+    id: String(id),
+    category: "bug",
+    message: "界".repeat(2000),
+    createdAt: "2026-10-28T00:00:00Z",
+  }));
+  await runtime.dispatch("/preferences/feedback-log", "PUT", {
+    value: JSON.stringify(entries),
+  });
+  const restored = new Store(database(db.snapshot()));
+  try {
+    assert.equal(
+      restored.sources().some((source) => source.id === removed.id),
+      false,
+    );
+    assert.deepEqual(
+      JSON.parse(restored.meta("preference:feedback-log")!),
+      entries,
+    );
+  } finally {
+    restored.close();
+    store.close();
+  }
+});
+
 test("a native SQLite backup restores in WASM without changing saved preferences", async () => {
   const directory = mkdtempSync(join(tmpdir(), "fieldnotes-restore-"));
   const native = new DatabaseSync(":memory:");

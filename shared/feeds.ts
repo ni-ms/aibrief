@@ -7,6 +7,8 @@ import {
 } from "./substack.ts";
 import { normalizeSubreddit } from "./reddit.ts";
 import { discoveryDirectory } from "./discovery-sources.ts";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+import he from "he";
 
 const KNOWN_BLOG_FEEDS: Record<string, { url: string; name: string }> = {
   "huggingface.co": {
@@ -560,14 +562,29 @@ ${outlines.join("\n")}
  * Parse an OPML XML file into a list of feed candidates `{ name, url }`.
  */
 export function parseOpml(xml: string): { name: string; url: string }[] {
+  if (xml.length > 2_000_000 || XMLValidator.validate(xml) !== true)
+    throw new Error("Choose a valid OPML XML file smaller than 2 MB.");
+  // Disable document-defined entities; decode only ordinary attribute entities.
+  const doc = new XMLParser({
+    ignoreAttributes: false,
+    processEntities: false,
+    parseTagValue: false,
+    parseAttributeValue: false,
+  }).parse(xml);
   const results: { name: string; url: string }[] = [];
   const seen = new Set<string>();
-  for (const match of xml.matchAll(/<outline\b[^>]*>/gi)) {
-    const tag = match[0];
-    const xmlUrl = tag.match(/\bxmlUrl\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+  const pending = [doc.opml?.body?.outline].flat().filter(Boolean);
+  const attribute = (value: unknown) =>
+    typeof value === "string"
+      ? he.decode(value, { isAttributeValue: true }).trim()
+      : "";
+  while (pending.length && results.length < 40) {
+    const row = pending.shift();
+    if (!row || typeof row !== "object") continue;
+    pending.unshift(...[row.outline].flat().filter(Boolean));
+    const xmlUrl = attribute(row["@_xmlUrl"]);
     if (!xmlUrl) continue;
-    const title =
-      tag.match(/\b(?:title|text)\s*=\s*["']([^"']+)["']/i)?.[1]?.trim() || "";
+    const title = attribute(row["@_title"]) || attribute(row["@_text"]);
     try {
       const normalized = normalizeFeedUrl(xmlUrl);
       if (seen.has(normalized)) continue;
@@ -578,5 +595,5 @@ export function parseOpml(xml: string): { name: string; url: string }[] {
       });
     } catch {}
   }
-  return results.slice(0, 40);
+  return results;
 }

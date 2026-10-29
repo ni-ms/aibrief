@@ -19,10 +19,12 @@ export class Store {
   db: SqlDatabase;
   constructor(db: SqlDatabase) {
     this.db = db;
-    for (const source of DEFAULT_SOURCES)
+    for (const source of DEFAULT_SOURCES) {
+      if (this.meta(`removed-source:${source.id}`) === "true") continue;
       this.db
         .prepare("INSERT OR IGNORE INTO sources VALUES(?,?)")
         .run(source.id, JSON.stringify(source));
+    }
     this.db.prepare("INSERT OR IGNORE INTO profiles VALUES(?,?)").run(
       "local",
       JSON.stringify({
@@ -46,10 +48,15 @@ export class Store {
         "INSERT INTO sources VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
       )
       .run(source.id, JSON.stringify(source));
+    this.db
+      .prepare("DELETE FROM metadata WHERE key=?")
+      .run(`removed-source:${source.id}`);
   }
   removeSource(id: string) {
     this.db.exec("BEGIN");
     try {
+      // Remember an explicit removal so startup cannot recreate a default feed.
+      this.meta(`removed-source:${id}`, "true");
       this.db
         .prepare(
           "DELETE FROM item_history WHERE item_id IN (SELECT id FROM items WHERE source_id=?)",

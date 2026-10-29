@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Router } from "../router.ts";
 import type { Store } from "../store.ts";
+import { FEEDBACK_LOG_LIMIT } from "../../shared/feedback.ts";
 
 const keys = [
   "page-size",
@@ -29,7 +30,13 @@ export function preferenceRoutes(store: Store) {
   });
   router.put("/preferences/:key", (req, res) => {
     const key = z.enum(keys).parse(req.params.key);
-    const { value } = z.object({ value: z.string().max(8000) }).parse(req.body);
+    const { value } = z
+      .object({
+        value: z
+          .string()
+          .max(key === "feedback-log" ? FEEDBACK_LOG_LIMIT : 8000),
+      })
+      .parse(req.body);
     store.meta(`preference:${key}`, value);
     res.json({ ok: true });
   });
