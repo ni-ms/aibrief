@@ -179,7 +179,9 @@ export class TopicService {
             hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
           );
           const isPaper = /arxiv\.org\/(abs|pdf)\//.test(canonicalUrl);
-          const isRepo = /github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/.test(canonicalUrl);
+          const isRepo = /github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/.test(
+            canonicalUrl,
+          );
           return {
             externalId: `hn:${hit.objectID}`,
             canonicalUrl,
@@ -213,7 +215,11 @@ export class TopicService {
       if (id === "hf-papers") {
         const url = `https://huggingface.co/api/papers/search?q=${encodeURIComponent(query)}`;
         const data = (await this.http.json(url, MANUAL_COOLDOWN_MS)) as any;
-        const papers = Array.isArray(data) ? data : Array.isArray(data?.papers) ? data.papers : [];
+        const papers = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.papers)
+            ? data.papers
+            : [];
         const parsed = parseHFPapers(papers);
         return {
           results: parsed.map((item) => ({
@@ -369,16 +375,54 @@ export class TopicService {
         if (found.results.length) {
           let source = this.store.sources().find((s) => s.id === providerId);
           if (!source && providerId === "arxiv") {
-            source = this.store
-              .sources()
-              .find((s) => s.kind === "arxiv" && s.id !== "arxiv-focus");
+            source =
+              this.store
+                .sources()
+                .find((s) => s.kind === "arxiv" && s.id !== "arxiv-focus") || {
+                id: "arxiv",
+                kind: "arxiv",
+                name: "arXiv",
+                enabled: true,
+                config: {},
+                lastAttempt: null,
+                lastSuccess: null,
+                error: null,
+              };
           } else if (!source && providerId === "hf-papers") {
-            source = this.store.sources().find((s) => s.kind === "hf-papers") ||
-                     this.store.sources().find((s) => s.kind === "arxiv" && s.id !== "arxiv-focus");
+            source =
+              this.store.sources().find((s) => s.kind === "hf-papers") || {
+                id: "hf-papers",
+                kind: "hf-papers",
+                name: "Hugging Face Papers",
+                enabled: true,
+                config: {},
+                lastAttempt: null,
+                lastSuccess: null,
+                error: null,
+              };
           } else if (!source && providerId === "hn-algolia") {
-            source = this.store.sources().find((s) => s.kind === "hn");
+            source =
+              this.store.sources().find((s) => s.kind === "hn") || {
+                id: "hn-algolia",
+                kind: "hn",
+                name: "Hacker News",
+                enabled: true,
+                config: {},
+                lastAttempt: null,
+                lastSuccess: null,
+                error: null,
+              };
           } else if (!source && providerId === "github-search") {
-            source = this.store.sources().find((s) => s.kind === "github");
+            source = {
+              id: "github-search",
+              kind: "github",
+              name: "GitHub",
+              enabled: true,
+              config: {},
+              lastAttempt: null,
+              lastSuccess: null,
+              error: null,
+            };
           }
           if (source) {
             this.store.ingest(source, found.results);

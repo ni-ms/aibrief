@@ -53,6 +53,7 @@ export function feedRoutes(store: Store, collector: Collector) {
         saved: z.boolean().optional(),
         dismissed: z.boolean().optional(),
         feedback: z.number().int().min(-1).max(1).optional(),
+        note: z.string().max(10000).optional(),
       })
       .strict()
       .parse(req.body);

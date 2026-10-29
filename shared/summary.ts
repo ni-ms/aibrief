@@ -32,15 +32,24 @@ export const DEPTH_SETTINGS = {
   { label: string; tokens: number; coverage: string; instruction: string }
 >;
 export function summaryScope(
-  item: Pick<Item, "abstract" | "releaseText" | "sourceKind" | "kind">,
+  item: Pick<
+    Item,
+    "abstract" | "releaseText" | "sourceKind" | "kind" | "metadata"
+  >,
 ) {
+  if (item.metadata?.publicationType === "launch") return "Launch excerpt";
   if (!item.abstract && item.releaseText) return "Release excerpt";
-  if (item.sourceKind === "rss" || item.sourceKind === "medium")
+  if (
+    item.sourceKind === "rss" ||
+    item.sourceKind === "medium" ||
+    item.sourceKind === "substack"
+  )
     return "Article excerpt";
   if (
     item.sourceKind === "hn" ||
     item.sourceKind === "bluesky" ||
-    item.sourceKind === "reddit"
+    item.sourceKind === "reddit" ||
+    item.sourceKind === "lobsters"
   )
     return "Post excerpt";
   return item.kind === "research" ? "Abstract only" : "Post excerpt";
@@ -54,7 +63,7 @@ export function summaryInterests(profile: Profile) {
 export function summaryInput(
   item: Pick<
     Item,
-    "title" | "abstract" | "releaseText" | "sourceKind" | "kind"
+    "title" | "abstract" | "releaseText" | "sourceKind" | "kind" | "metadata"
   >,
   interests: string,
 ) {

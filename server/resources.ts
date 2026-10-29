@@ -1,4 +1,5 @@
 import type { Resource, Source } from "../shared/types.ts";
+import { DISCOVERY_DIRECTORIES } from "../shared/discovery-sources.ts";
 const preset = (
   id: string,
   kind: Source["kind"],
@@ -18,6 +19,33 @@ const preset = (
 });
 /** Resource catalog and presets. These never enable a new collector without a user action. */
 export const RESOURCES: Resource[] = [
+  ...DISCOVERY_DIRECTORIES.map((site): Resource => ({
+    id: site.id,
+    kind: site.feedUrl ? "rss" : null,
+    name: site.name,
+    category: "Discovery",
+    description: site.description,
+    docs: site.docs || site.website,
+    connectionLabel: site.feedUrl
+      ? "Public feed · No account needed"
+      : site.status === "api-key"
+        ? "API key required"
+        : site.status === "unverified"
+          ? "Address unverified"
+          : "Feed not available",
+    ...(site.feedUrl
+      ? {
+          preset: preset(
+            site.id,
+            "rss",
+            site.feedName || site.name,
+            { url: site.feedUrl },
+            site.id,
+          ),
+          caveat: site.note,
+        }
+      : { unavailable: site.note }),
+  })),
   {
     id: "arxiv",
     kind: "arxiv",
@@ -172,8 +200,7 @@ export const RESOURCES: Resource[] = [
     kind: "substack",
     name: "Substack",
     category: "Writing",
-    description:
-      "Newsletters from Substack authors or publication subdomains.",
+    description: "Newsletters from Substack authors or publication subdomains.",
     docs: "https://support.substack.com/hc/en-us/articles/360037833072-Can-I-set-up-an-RSS-feed-for-my-publication-",
     field: "substack",
     placeholder: "@handle, importai, or custom newsletter domain",

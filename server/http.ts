@@ -76,38 +76,6 @@ export class HttpClient {
         if (cache?.last_modified && !browserMode)
           headers["If-Modified-Since"] = cache.last_modified;
         if (browserMode) delete headers["User-Agent"];
-        const isKnownNonCors =
-          browserMode &&
-          /(^|\.)(medium\.com|arxiv\.org|substack\.com)$/i.test(host);
-        if (isKnownNonCors) {
-          try {
-            const proxyResponse = await this.fetcher(
-              `/api/proxy?url=${encodeURIComponent(url)}`,
-              {
-                mode: "cors",
-                credentials: "omit",
-                signal: AbortSignal.timeout(18000),
-              },
-            );
-            if (proxyResponse.ok) {
-              const body = await proxyResponse.text();
-              this.store.db
-                .prepare(
-                  "INSERT INTO http_cache VALUES(?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET body=excluded.body,etag=excluded.etag,last_modified=excluded.last_modified,checked_at=excluded.checked_at",
-                )
-                .run(
-                  url,
-                  body,
-                  proxyResponse.headers.get("etag"),
-                  proxyResponse.headers.get("last-modified"),
-                  new Date().toISOString(),
-                );
-              return body;
-            }
-          } catch {
-            // Proxy failed or unavailable; fall through to direct attempt
-          }
-        }
         let response = await this.fetcher(url, {
           headers,
           ...(browserMode

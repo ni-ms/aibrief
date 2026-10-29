@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS personal_state (
   dismissed INTEGER NOT NULL DEFAULT 0,
   feedback INTEGER NOT NULL DEFAULT 0,
   read_token TEXT,
+  note TEXT NOT NULL DEFAULT '',
   PRIMARY KEY(profile_id, group_id)
 );
 
@@ -115,4 +116,11 @@ CREATE TABLE IF NOT EXISTS trail_links (
   payload TEXT NOT NULL,
   hidden INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(group_id,id)
+);
+CREATE TABLE IF NOT EXISTS item_embeddings (
+  group_id INTEGER PRIMARY KEY REFERENCES story_groups(id),
+  content_hash TEXT NOT NULL,
+  model TEXT NOT NULL,
+  vector BLOB NOT NULL,
+  updated_at TEXT NOT NULL
 );

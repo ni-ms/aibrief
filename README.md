@@ -15,7 +15,7 @@ npm run dev
 
 Open **http://127.0.0.1:5174**. Keep one Fieldnotes tab open at a time: a browser lock prevents another tab from overwriting your database. Source collection runs while the app is open and awake. Failed source requests keep cached items and report the error. Direct collection depends on the source allowing browser requests; arXiv, Reddit, OpenReview, and arbitrary RSS feeds may reject them. WebAssembly cannot bypass cross-origin restrictions, and no third-party proxy is used.
 
-Open **Your data** to request persistent browser storage, download a SQLite backup, or restore one. Restoring explicitly replaces the current browser database. Browser storage is isolated by **origin**, not by repository path, and is **not password encrypted**. Avoid sharing the hosting origin with untrusted apps. Clearing site data, private browsing, or storage pressure (if persistence is not granted) can remove local data; keep backups. Data is specific to the browser profile and site URL. AI model files use WebLLM's browser cache separately.
+Open **Settings → Data & backups** to request persistent browser storage, download a SQLite backup, or restore one. Restoring explicitly replaces the current browser database. Browser storage is isolated by **origin**, not by repository path, and is **not password encrypted**. Avoid sharing the hosting origin with untrusted apps. Clearing site data, private browsing, or storage pressure (if persistence is not granted) can remove local data; keep backups. Data is specific to the browser profile and site URL. AI model files use WebLLM's browser cache separately.
 
 To bring your existing local-server data into the browser:
 
@@ -23,7 +23,7 @@ To bring your existing local-server data into the browser:
 npm run backup:server
 ```
 
-Import the generated `data/fieldnotes-browser-backup.sqlite` in **Your data → Restore a backup**. The command takes a consistent SQLite snapshot, including committed WAL data, and refuses to overwrite an existing backup. Pass another output path after `--` to make an additional backup. The original database stays in place. Never commit databases or private backups to the repository.
+Import the generated `data/fieldnotes-browser-backup.sqlite` in **Settings → Data & backups → Restore a backup**. The command takes a consistent SQLite snapshot, including committed WAL data, and refuses to overwrite an existing backup. Pass another output path after `--` to make an additional backup. The original database stays in place. Never commit databases or private backups to the repository.
 
 ## Deploy to GitHub Pages
 
@@ -64,6 +64,10 @@ Open **http://127.0.0.1:3001**. Stop with Ctrl+C. Data persists in `data/fieldno
 
 ## Use
 
+On first visit, a three-step onboarding helps you choose multiple interests or write your own, refine priorities and exclusions, and review your personalized feed. Completing it updates the existing ranking profile and connects research feeds for recognized fields. Skip for now keeps the current feed. Completion is saved in the same local database as other preferences. Open **Settings → Personalize your feed → Redo onboarding** to revisit it with your current choices; Cancel leaves the saved configuration in place.
+
+New workspaces start in **dark mode**, including the initial loading screen. **Settings → Appearance** lets you choose light or dark, and an explicit saved choice takes precedence on later visits. Settings also links to AI model controls and data backups.
+
 - **Sources:** add or pause feeds, repository releases, subreddits, social accounts and conference venues. Search by service or configured feed name. Adding a source starts collection; the switch pauses updates while retaining cached items. Configuration errors appear beside the source that needs fixing.
 - **Open Source:** explore public GitHub stars, starting with `f20201351h-maker`'s collection. Add a username or GitHub profile URL to keep another collection. Search descriptions and topics, filter by language or topic, sort by stars/activity, and follow a project's releases into Read. GitHub returns 100 projects per batch; search and filters cover loaded projects, with paging and **Explore more** for the rest. Up to 12 collections persist across visits. No GitHub login is needed for public collections; this does not star repositories on your GitHub account.
 - **Search and follow:** use **Search this view** to search the current Latest, Papers, Saved or topic list. Use **Find & follow topics** to preview recent public arXiv results across all subjects and search already-collected sources, including Reddit. Choose providers, search a topic such as “topological quantum computing,” inspect the excerpts and provenance, then choose **Follow topic**. Followed queries become chips above the feed; **Open topic feed** takes you there immediately after following.
@@ -73,9 +77,30 @@ Open **http://127.0.0.1:3001**. Stop with Ctrl+C. Data persists in `data/fieldno
 
 The reader’s **Summary depth** slider has Brief (contribution and main limitation), Standard (contribution, approach, results, relevance), and Detailed (methods, assumptions, evidence, limitations, remaining questions). Generation starts after releasing the slider or a keyboard adjustment, once a local model is ready. Cancel stops the worker. Depth changes are disabled during loading or generation; cancel first to choose another depth.
 
-Local AI is preferred by default. Once enabled and cached, it starts automatically and summarizes the selected source. Source text stays one tab away and is also shown during setup or generation. Why this matched exposes terms and score components. Publication and discovery dates are not conflated.
+Choose **Load model** in the header or reader to check your device, download the model if needed, and start it in one step. Cached files are reused on later loads. The model stays unloaded at startup so opening the feed remains fast. Once ready, it can automatically summarize the selected source. Source text stays one tab away and is also shown during setup or generation. Why this matched exposes terms and score components. Publication and discovery dates are not conflated.
 
 ## Resources
+
+**Sources → Discovery** offers four verified subscriptions: Product Hunt launches, AlternativeTo News, BetaList startups, and the StartupBase blog. Paste a directory's name or homepage into Quick add, or use its source card. Product Hunt and BetaList entries appear under Tools & Releases and use **Launch excerpt** for summaries; the other two are news articles. Re-adding the same directory through Quick add reuses its subscription. Source switches pause collection without removing stored items.
+
+| Directory | Availability and scope |
+| --- | --- |
+| [Product Hunt](https://help.producthunt.com/en/articles/484970-does-product-hunt-have-an-rss-feed) | Easy: official public Atom feed; launches and descriptions, with Product Hunt page links |
+| [AlternativeTo](https://feed.alternativeto.net/news/all/) | Easy for **News**; this feed does not expose the software catalog or per-app alternatives |
+| [BetaList](https://betalist.com/) | Easy: public startup Atom feed linked by the homepage |
+| [StartupBase](https://startupbase.io/rss.xml) | Easy for the **blog**; no launch leaderboard in this feed |
+| [SaaSHub](https://www.saashub.com/site/api) | Not connected: documented beta API requires a key and attribution; product/alternatives lookup, rather than a chronological feed |
+| Microlaunch, Uneed, Futurepedia | Not connected: no public product feed or documented discovery API verified; a separate website connector needs investigation |
+| Toolify, There Is An AI For That | Not connected: automated requests were rejected and no official discovery feed was verified |
+| Launched | Not connected: `launched.io` could not be reached; the current directory URL needs verification |
+
+Checked October 28, 2026. The unavailable cards link to their websites and explain what is missing; they do not create subscriptions. The four public feeds were fetched and parsed locally. A static browser deployment still depends on upstream cross-origin permissions; use optional local server mode when a feed disallows browser access. Feed availability can change, and failed refreshes preserve cached items.
+
+## Feedback form configuration
+
+The project owner sets `feedback.googleFormUrl` in [`config/app.json`](config/app.json). It contains the published Google Form URL, with no runtime URL editor or user preference override. Rebuild after changing this file for a deployed app. **Copy & open Google Form** copies the suggestion and opens that configured form; the user pastes and submits it there. Saving a suggestion locally does not submit the form. Google Forms prefilled answers require field-specific IDs, so the app does not attach an ignored `feedback=` query parameter.
+
+## Other resources
 
 | Resource             | Collection                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------ |
@@ -123,9 +148,11 @@ Briefing selection softly penalizes repetitive titles and sources without mergin
 
 ## Local AI
 
-Preferred by default, with an explicit first-download enable action. Cached weights load automatically on later visits after a WebGPU check. Turning AI off persists that choice; Cancel stops the current worker. The UI reports size and progress, and a browser lock prevents two tabs from loading the same GPU model at once. Default: `Qwen2.5-1.5B-Instruct-q4f16_1-MLC` (about 828 MB weights + runtime; about 1,630 MB GPU memory). Compact 0.5B options are configurable. **The 0.5B model invented a release-note claim in testing**, so it is not recommended for faithful technical summaries.
+**Load model** checks WebGPU compatibility, downloads weights if needed, and starts the model in one action. No device check or setup screen is required. Cached weights are reused on later loads; the AI runtime is not imported during feed startup. GPUs without float16 automatically use the compatible compact model. **Unload model** releases the worker; Cancel stops loading or generation, including active endpoint requests. Advanced options let you choose a model or connect your own Ollama / LM Studio endpoint. The UI reports size and progress, and a browser lock prevents two tabs from loading the same GPU model at once. Default: `Qwen2.5-1.5B-Instruct-q4f16_1-MLC` (about 828 MB weights + runtime; about 1,630 MB GPU memory). Compact 0.5B options are configurable. **The 0.5B model invented a release-note claim in testing**, so it is not recommended for faithful technical summaries.
 
 WebLLM runs in a dedicated browser worker, caches files in IndexedDB, processes at most ten items sequentially and supports cancellation. It receives up to 4,800 characters of the current source plus your interest prompt/focus. JSON output is validated; citations come from stored URLs. Validation does not establish truth. Compare summaries with their source. Browser model caches are scoped to the app origin/port, so keep using the same local URL. Cached results include the exact bounded input message (source text, title, source scope, and interests), depth, model, prompt version and interest hash. Brief/Standard/Detailed have separate prompts and output budgets of 220/420/800 tokens. Abstract-based summaries explicitly say **Abstract only**; Detailed asks the model to identify missing methods, assumptions and evidence. No full paper text is fetched for summaries. No server inference or cloud fallback exists.
+
+Feed checks run every three seconds during collection and every minute when idle; hidden tabs pause UI polling and refresh on return. Search waits briefly for typing to settle, reuses bounded cached document features across queries and feed refreshes, and skips semantic vectors in keyword mode. Secondary screens load on demand. Shared theme colors cover the feed, reader, forms, source catalog, and model controls in both light and dark modes. Desktop panes scroll independently; narrow screens open the reader after selecting an item.
 
 ## Code and verification
 

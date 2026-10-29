@@ -44,7 +44,7 @@ export interface CollectedItem {
     venue?: string;
     authors?: string[];
     publicationType?:
-      "preprint" | "conference" | "article" | "post" | "release";
+      "preprint" | "conference" | "article" | "post" | "release" | "launch";
   };
   fetchedAt?: string;
   externalId: string;
@@ -76,7 +76,9 @@ export interface Story extends Item {
   saved: boolean;
   dismissed: boolean;
   feedback: number;
+  note?: string;
   score: number;
+  semanticScore?: number;
   reasons: string[];
   ranking?: Ranking;
 }
@@ -152,7 +154,8 @@ export interface Resource {
   id: string;
   kind: SourceKind | null;
   name: string;
-  category: "Research" | "Code" | "Discussion" | "Writing" | "Social";
+  category:
+    "Research" | "Code" | "Discussion" | "Writing" | "Social" | "Discovery";
   description: string;
   docs: string;
   field?:
@@ -227,4 +230,11 @@ export interface VersionChanges {
   codeRemoved: string[];
   abstractChanged: boolean;
   truncated: boolean;
+}
+export interface FeedbackSubmission {
+  id: string;
+  category: "source" | "ui" | "ranking" | "bug" | "other";
+  message: string;
+  url?: string;
+  createdAt: string;
 }

@@ -10,6 +10,7 @@ export interface ShortcutHandlers {
   onOpenOriginal?: (story: Story) => void;
   onFocusSearch?: () => void;
   onToggleCommandPalette?: () => void;
+  onToggleSidebar?: () => void;
   onToggleHelp?: () => void;
   currentStory?: Story | null;
   isModalOpen?: boolean;
@@ -24,6 +25,7 @@ export function useShortcuts({
   onOpenOriginal,
   onFocusSearch,
   onToggleCommandPalette,
+  onToggleSidebar,
   onToggleHelp,
   currentStory,
   isModalOpen = false,
@@ -36,6 +38,14 @@ export function useShortcuts({
         onToggleCommandPalette?.();
         return;
       }
+      // Preserve browser shortcuts such as Save page and Find on page.
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.defaultPrevented
+      )
+        return;
 
       // If user is typing in an input/textarea/select, don't trigger single-key shortcuts
       const target = event.target as HTMLElement | null;
@@ -93,6 +103,10 @@ export function useShortcuts({
             onOpenOriginal?.(currentStory);
           }
           break;
+        case "[":
+          event.preventDefault();
+          onToggleSidebar?.();
+          break;
         case "/":
           event.preventDefault();
           onFocusSearch?.();
@@ -115,6 +129,7 @@ export function useShortcuts({
     onOpenOriginal,
     onFocusSearch,
     onToggleCommandPalette,
+    onToggleSidebar,
     onToggleHelp,
     currentStory,
     isModalOpen,

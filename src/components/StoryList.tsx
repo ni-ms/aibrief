@@ -1,4 +1,11 @@
-import { Bookmark, Check, ExternalLink, ThumbsUp, X } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  ExternalLink,
+  StickyNote,
+  ThumbsUp,
+  X,
+} from "lucide-react";
 import type { Story } from "../../shared/types.ts";
 import { ago, date } from "../lib/format";
 
@@ -10,38 +17,93 @@ export function sourceBadgeInfo(
   const name = (sourceName || "").toLowerCase();
   const url = (canonicalUrl || "").toLowerCase();
 
-  if (sourceKind === "arxiv" || name.includes("arxiv") || url.includes("arxiv.org")) {
+  for (const [match, label, className] of [
+    ["product hunt", "Product Hunt", "badge-producthunt"],
+    ["alternativeto", "AlternativeTo", "badge-alternativeto"],
+    ["betalist", "BetaList", "badge-betalist"],
+    ["startupbase", "StartupBase", "badge-startupbase"],
+  ]) {
+    if (name.includes(match)) return { label, className };
+  }
+
+  if (
+    sourceKind === "arxiv" ||
+    name.includes("arxiv") ||
+    url.includes("arxiv.org")
+  ) {
     return { label: "arXiv", className: "badge-arxiv" };
   }
-  if (sourceKind === "hf-papers" || name.includes("hugging face") || url.includes("huggingface.co")) {
+  if (
+    sourceKind === "hf-papers" ||
+    name.includes("hugging face") ||
+    url.includes("huggingface.co")
+  ) {
     return { label: "HF Papers", className: "badge-hf" };
   }
-  if (sourceKind === "github" || name.includes("github") || url.includes("github.com")) {
+  if (
+    sourceKind === "github" ||
+    name.includes("github") ||
+    url.includes("github.com")
+  ) {
     return { label: "GitHub", className: "badge-gh" };
   }
-  if (sourceKind === "hn" || name.includes("hacker news") || url.includes("ycombinator.com")) {
+  if (
+    sourceKind === "hn" ||
+    name.includes("hacker news") ||
+    url.includes("ycombinator.com")
+  ) {
     return { label: "HN", className: "badge-hn" };
   }
-  if (sourceKind === "reddit" || name.includes("reddit") || url.includes("reddit.com")) {
+  if (
+    sourceKind === "reddit" ||
+    name.includes("reddit") ||
+    url.includes("reddit.com")
+  ) {
     const subMatch = name.match(/r\/([a-zA-Z0-9_]+)/i);
-    return { label: subMatch ? `r/${subMatch[1]}` : "Reddit", className: "badge-reddit" };
+    return {
+      label: subMatch ? `r/${subMatch[1]}` : "Reddit",
+      className: "badge-reddit",
+    };
   }
-  if (sourceKind === "medium" || name.includes("medium") || url.includes("medium.com")) {
+  if (
+    sourceKind === "medium" ||
+    name.includes("medium") ||
+    url.includes("medium.com")
+  ) {
     return { label: "Medium", className: "badge-medium" };
   }
-  if (sourceKind === "substack" || name.includes("substack") || url.includes("substack.com")) {
+  if (
+    sourceKind === "substack" ||
+    name.includes("substack") ||
+    url.includes("substack.com")
+  ) {
     return { label: "Substack", className: "badge-substack" };
   }
-  if (sourceKind === "lobsters" || name.includes("lobste.rs") || url.includes("lobste.rs")) {
+  if (
+    sourceKind === "lobsters" ||
+    name.includes("lobste.rs") ||
+    url.includes("lobste.rs")
+  ) {
     return { label: "Lobste.rs", className: "badge-lobsters" };
   }
-  if (sourceKind === "bluesky" || name.includes("bluesky") || url.includes("bsky.app")) {
+  if (
+    sourceKind === "bluesky" ||
+    name.includes("bluesky") ||
+    url.includes("bsky.app")
+  ) {
     return { label: "Bluesky", className: "badge-bluesky" };
   }
-  if (sourceKind === "openreview" || name.includes("openreview") || url.includes("openreview.net")) {
+  if (
+    sourceKind === "openreview" ||
+    name.includes("openreview") ||
+    url.includes("openreview.net")
+  ) {
     return { label: "OpenReview", className: "badge-openreview" };
   }
-  return { label: sourceName.split(" · ")[0] || "Blog", className: "badge-rss" };
+  return {
+    label: sourceName.split(" · ")[0] || "Blog",
+    className: "badge-rss",
+  };
 }
 
 export function StoryList({
@@ -51,6 +113,7 @@ export function StoryList({
   onAction,
   empty,
   offset = 0,
+  showSemanticBadge = false,
 }: {
   stories: Story[];
   selected: number | null;
@@ -58,14 +121,24 @@ export function StoryList({
   onAction?: (story: Story, patch: Record<string, unknown>) => void;
   empty: string;
   offset?: number;
+  showSemanticBadge?: boolean;
 }) {
   return (
     <div className="story-list" aria-label="Developments">
       {stories.length ? (
-        stories.map((s, index) => {
-          const mainBadge = sourceBadgeInfo(s.sourceName, s.sourceKind, s.canonicalUrl);
-          const excerpt = (s.abstract || s.releaseText || "").slice(0, 220).trim();
-          const authorCount = s.metadata?.authors?.length || 0;
+        stories.map((s) => {
+          const mainBadge = sourceBadgeInfo(
+            s.sourceName,
+            s.sourceKind,
+            s.canonicalUrl,
+          );
+          const excerpt = (s.abstract || s.releaseText || "")
+            .slice(0, 220)
+            .trim();
+          const authors = (s.metadata?.authors || []).filter(
+            (author) => author.toLowerCase() !== mainBadge.label.toLowerCase(),
+          );
+          const authorCount = authors.length;
           const isSelected = selected === s.groupId;
           const hasMultipleSources = s.sources && s.sources.length > 1;
 
@@ -78,6 +151,7 @@ export function StoryList({
               className={`story-card ${isSelected ? "selected" : ""} ${s.read ? "read" : ""}`}
               onClick={() => onSelect(s)}
               onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   onSelect(s);
@@ -116,10 +190,20 @@ export function StoryList({
                   )}
                   {authorCount > 0 && (
                     <span className="metadata-pill authors-pill">
-                      {s.metadata!.authors![0].split(" ").pop()}
+                      {authors[0].split(" ").pop()}
                       {authorCount > 1 ? ` +${authorCount - 1}` : ""}
                     </span>
                   )}
+                  {showSemanticBadge &&
+                    typeof s.semanticScore === "number" &&
+                    s.semanticScore >= 16 && (
+                      <span
+                        className="metadata-pill"
+                        title="Local semantic similarity score"
+                      >
+                        Semantic · {s.semanticScore}%
+                      </span>
+                    )}
                 </div>
 
                 <div className="card-time-actions">
@@ -136,7 +220,7 @@ export function StoryList({
                       <button
                         className={`action-btn ${s.saved ? "active" : ""}`}
                         title={s.saved ? "Saved (s)" : "Save for later (s)"}
-                        aria-label="Save"
+                        aria-label={s.saved ? "Unsave" : "Save"}
                         onClick={(e) => {
                           e.stopPropagation();
                           onAction(s, { saved: !s.saved });
@@ -150,7 +234,7 @@ export function StoryList({
                       <button
                         className={`action-btn ${s.read ? "active" : ""}`}
                         title={s.read ? "Mark unread (m)" : "Mark read (m)"}
-                        aria-label="Mark read"
+                        aria-label={s.read ? "Mark unread" : "Mark read"}
                         onClick={(e) => {
                           e.stopPropagation();
                           onAction(s, { read: !s.read });
@@ -198,15 +282,12 @@ export function StoryList({
 
               <h3 className="card-title">{s.title}</h3>
 
-              {excerpt && (
-                <p className="card-excerpt">
-                  {excerpt}
-                </p>
-              )}
+              {excerpt && <p className="card-excerpt">{excerpt}</p>}
 
               <div className="card-footer-row">
                 <span className="card-topic-tag">
-                  {s.topics[0] || (s.metadata?.venue ? s.metadata.venue : s.kind)}
+                  {s.topics[0] ||
+                    (s.metadata?.venue ? s.metadata.venue : s.kind)}
                 </span>
                 {s.reasons?.[0] && (
                   <span className="card-reason" title={s.reasons.join(" · ")}>
@@ -214,8 +295,17 @@ export function StoryList({
                   </span>
                 )}
                 <div className="card-status-icons">
+                  {s.note?.trim() && (
+                    <span title={`Note: ${s.note.trim()}`}>
+                      <StickyNote size={11} />
+                    </span>
+                  )}
                   {s.saved && (
-                    <Bookmark size={11} fill="currentColor" className="saved-icon" />
+                    <Bookmark
+                      size={11}
+                      fill="currentColor"
+                      className="saved-icon"
+                    />
                   )}
                   {s.read && <Check size={11} className="read-icon" />}
                 </div>

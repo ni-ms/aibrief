@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bookmark,
+  BookOpen,
   Check,
+  Copy,
+  FileCode2,
   FileText,
   LoaderCircle,
+  StickyNote,
   ThumbsDown,
   ThumbsUp,
   X,
@@ -16,33 +20,11 @@ import {
   SOURCE_LIMIT,
   summaryScope,
 } from "../../shared/summary.ts";
+import { generateBibtex } from "../../shared/export-briefing.ts";
 import { ResearchTrail } from "./ResearchTrail";
 import { date, scope } from "../lib/format";
 
 const sentences = new Intl.Segmenter("en", { granularity: "sentence" });
-
-function formatParagraphs(text: string): string[] {
-  if (!text) return [];
-  const raw = text.split(/\r?\n\s*\r?\n+/).map((p) => p.trim()).filter(Boolean);
-  if (raw.length > 1) return raw;
-  try {
-    const segmented = [...sentences.segment(text)].map((s) => s.segment.trim()).filter(Boolean);
-    if (segmented.length <= 3) return [text];
-    const grouped: string[] = [];
-    let current: string[] = [];
-    for (const s of segmented) {
-      current.push(s);
-      if (current.length >= 3) {
-        grouped.push(current.join(" "));
-        current = [];
-      }
-    }
-    if (current.length) grouped.push(current.join(" "));
-    return grouped;
-  } catch {
-    return [text];
-  }
-}
 function SummaryPoints({ text }: { text: string }) {
   const lines = text
     .split(/\r?\n+/)
@@ -62,6 +44,51 @@ function SummaryPoints({ text }: { text: string }) {
     </ul>
   );
 }
+
+/** Split dense single-block abstracts into readable 3-sentence paragraphs. */
+function formatReadableParagraphs(raw: string): string[] {
+  const explicit = raw
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (explicit.length > 1) return explicit;
+  const parts = [...sentences.segment(raw)]
+    .map((s) => s.segment.trim())
+    .filter(Boolean);
+  if (parts.length <= 3) return [raw];
+  const chunks: string[] = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    chunks.push(parts.slice(i, i + 3).join(" "));
+  }
+  return chunks;
+}
+
+/** Extract clean readable paragraphs from fetched HTML without executing scripts. */
+function extractReadableHtmlText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  for (const bad of doc.querySelectorAll(
+    "script, style, nav, header, footer, aside, noscript, svg, form",
+  )) {
+    bad.remove();
+  }
+  const container =
+    doc.querySelector("article") ||
+    doc.querySelector("main") ||
+    doc.querySelector('[role="main"]') ||
+    doc.body;
+  if (!container) return "";
+  const paragraphs = [...container.querySelectorAll("p, h2, h3, li")]
+    .map((el) => (el.textContent || "").replace(/\s+/g, " ").trim())
+    .filter((line) => line.length >= 45);
+  if (paragraphs.length >= 2) {
+    return paragraphs.slice(0, 40).join("\n\n");
+  }
+  return (container.textContent || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 12000);
+}
+
 export function StoryReader({
   story: s,
   summary,
@@ -83,7 +110,7 @@ export function StoryReader({
   preferSummary?: boolean;
   depth: SummaryDepth;
   onDepth: (depth: SummaryDepth) => void;
-  onAction: (patch: Record<string, unknown>) => void;
+  onAction: (patch: Record<string, unknown>) => Promise<boolean>;
   onSummary: () => void;
   onModel: () => void;
   onCancel: () => void;
@@ -91,11 +118,35 @@ export function StoryReader({
 }) {
   const [tab, setTab] = useState(preferSummary ? "summary" : "source");
   const [draftDepth, setDraftDepth] = useState(depth);
+  const [draftNote, setDraftNote] = useState("");
+  const [noteSaved, setNoteSaved] = useState(false);
+  const [bibtexCopied, setBibtexCopied] = useState(false);
+  const [fetchedText, setFetchedText] = useState("");
+  const [fetchingArticle, setFetchingArticle] = useState(false);
+  const [fetchError, setFetchError] = useState("");
+  const articleRequest = useRef<AbortController | null>(null);
+  const savedNote = useRef(s?.note || "");
+  useEffect(() => () => articleRequest.current?.abort(), []);
+
   useEffect(() => setDraftDepth(depth), [depth]);
-  useEffect(
-    () => setTab(preferSummary ? "summary" : "source"),
-    [s?.id, preferSummary],
-  );
+  useEffect(() => {
+    setTab(preferSummary ? "summary" : "source");
+    setDraftNote(s?.note || "");
+    setNoteSaved(false);
+    setBibtexCopied(false);
+    setFetchedText("");
+    setFetchError("");
+  }, [s?.groupId]);
+  useEffect(() => {
+    if (preferSummary) setTab("summary");
+  }, [preferSummary]);
+  useEffect(() => {
+    const previous = savedNote.current;
+    setDraftNote((prior) =>
+      prior === previous ? s?.note || "" : prior,
+    );
+    savedNote.current = s?.note || "";
+  }, [s?.note]);
   useEffect(() => {
     if (modelStatus === "error" && !summary) setTab("source");
   }, [modelStatus, summary]);
@@ -106,7 +157,8 @@ export function StoryReader({
         <span>Select a development</span>
       </div>
     );
-  const text = s.abstract || s.releaseText;
+  const text = fetchedText || s.abstract || s.releaseText;
+  const hasSourceText = !!(s.abstract || s.releaseText);
   const busy = modelStatus === "working" || modelStatus === "loading";
   const type =
     s.metadata?.publicationType ||
@@ -117,6 +169,67 @@ export function StoryReader({
         : s.kind === "research"
           ? "paper"
           : "article");
+
+  const arxivId =
+    s.metadata?.arxivId ||
+    s.canonicalUrl.match(/arxiv\.org\/abs\/([^/?#]+)/i)?.[1];
+
+  async function handleFetchFullArticle() {
+    if (!s || fetchingArticle) return;
+    setFetchingArticle(true);
+    setFetchError("");
+    const controller = new AbortController();
+    articleRequest.current = controller;
+    try {
+      const res = await fetch(
+        `/api/proxy?url=${encodeURIComponent(s.canonicalUrl)}`,
+        {
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(15000),
+          ]),
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Could not fetch article (HTTP ${res.status})`);
+      }
+      const html = await res.text();
+      const extracted = extractReadableHtmlText(html);
+      if (!extracted || extracted.length < 60) {
+        throw new Error("No additional readable article text found on page.");
+      }
+      setFetchedText(extracted);
+      setTab("source");
+    } catch (e) {
+      if (!controller.signal.aborted) setFetchError((e as Error).message);
+    } finally {
+      setFetchingArticle(false);
+    }
+  }
+
+  async function handleCopyBibtex() {
+    if (!s) return;
+    const bib = generateBibtex(s);
+    try {
+      await navigator.clipboard.writeText(bib);
+      setBibtexCopied(true);
+      setTimeout(() => setBibtexCopied(false), 2500);
+    } catch {}
+  }
+
+  async function saveNoteNow() {
+    if (!s) return;
+    if (draftNote !== (s.note || "")) {
+      const saved = await onAction({ note: draftNote });
+      if (saved) {
+        setNoteSaved(true);
+        setTimeout(() => setNoteSaved(false), 2000);
+      }
+    }
+  }
+
+  const paragraphs = text ? formatReadableParagraphs(text) : [];
+
   return (
     <article className="reader">
       <button className="reader-back" onClick={onBack}>
@@ -126,6 +239,25 @@ export function StoryReader({
         <span className="publication-type">{type}</span>
         <span>{date(s.publishedAt)}</span>
         <span>{s.topics[0]}</span>
+        {s.kind === "research" && (
+          <button
+            type="button"
+            className="bibtex-btn"
+            title="Copy BibTeX citation"
+            onClick={() => void handleCopyBibtex()}
+            style={{
+              marginLeft: "4px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "10px",
+              color: "var(--quiet)",
+            }}
+          >
+            {bibtexCopied ? <Check size={12} /> : <Copy size={12} />}
+            <span>{bibtexCopied ? "BibTeX copied" : "BibTeX"}</span>
+          </button>
+        )}
         <button
           title={s.saved ? "Unsave" : "Save"}
           aria-label={s.saved ? "Unsave story" : "Save story"}
@@ -149,7 +281,46 @@ export function StoryReader({
             <ArrowUpRight size={12} />
           </a>
         ))}
+        {arxivId && (
+          <>
+            {!s.links.some((link) => /arxiv\.org\/pdf\//i.test(link.url)) && (
+              <a
+                href={`https://arxiv.org/pdf/${arxivId}.pdf`}
+                target="_blank"
+                rel="noreferrer"
+                title="Open arXiv PDF"
+              >
+                PDF <ArrowUpRight size={12} />
+              </a>
+            )}
+            <a
+              href={`https://ar5iv.labs.arxiv.org/html/${arxivId}`}
+              target="_blank"
+              rel="noreferrer"
+              title="Open HTML version on ar5iv"
+            >
+              ar5iv HTML <FileCode2 size={12} />
+            </a>
+          </>
+        )}
+        {s.kind !== "research" && (!text || text.length < 600) && (
+          <button
+            type="button"
+            className="text-link"
+            onClick={() => void handleFetchFullArticle()}
+            disabled={fetchingArticle}
+            style={{ fontSize: "10px" }}
+          >
+            <BookOpen size={12} />
+            {fetchingArticle ? "Fetching article…" : "Fetch readable article"}
+          </button>
+        )}
       </div>
+      {fetchError && (
+        <p className="field-note error-text" role="status">
+          {fetchError}
+        </p>
+      )}
       <div className="reader-tabs">
         <button
           className={tab === "source" ? "active" : ""}
@@ -171,26 +342,13 @@ export function StoryReader({
             Trail
           </button>
         )}
-        {tab === "summary" && (
-          <div className="depth-inline-controls">
-            {(["brief", "standard", "detailed"] as const).map((d) => (
-              <button
-                key={d}
-                className={`depth-tag ${depth === d ? "active" : ""}`}
-                onClick={() => onDepth(d)}
-              >
-                {DEPTH_SETTINGS[d].label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
       {tab === "trail" ? (
         <ResearchTrail key={s.groupId} groupId={s.groupId} />
       ) : tab === "source" ? (
         <div className="reader-body">
-          {text ? (
-            formatParagraphs(text).map((p, idx) => <p key={idx}>{p}</p>)
+          {paragraphs.length ? (
+            paragraphs.map((para, idx) => <p key={idx}>{para}</p>)
           ) : (
             <p>This source provides a title and link only.</p>
           )}
@@ -220,15 +378,17 @@ export function StoryReader({
       ) : (
         <div className="summary-empty">
           <p>
-            {!text
-              ? "No source text to summarize."
+            {!hasSourceText
+              ? fetchedText
+                ? "Read the fetched article in Source. Summaries use saved source excerpts, which this item doesn’t include."
+                : "No source text to summarize."
               : busy
                 ? "Local AI is working."
                 : modelStatus === "ready"
                   ? "Summarize this source excerpt."
-                  : "Enable a browser model to summarize this excerpt."}
+                  : "Load a model to summarize this excerpt. Your download is saved for next time."}
           </p>
-          {text && (
+          {hasSourceText && (
             <button
               className="button"
               onClick={
@@ -244,14 +404,14 @@ export function StoryReader({
                 ? "Cancel"
                 : modelStatus === "ready"
                   ? "Generate summary"
-                  : "Set up local AI"}
+                  : "Load model"}
             </button>
           )}
           {text && (
             <div className="reader-body source-fallback">
               <div className="generated-label">SOURCE {scope(s)}</div>
-              {formatParagraphs(text).map((p, idx) => (
-                <p key={idx}>{p}</p>
+              {paragraphs.map((para, idx) => (
+                <p key={idx}>{para}</p>
               ))}
             </div>
           )}
@@ -296,6 +456,42 @@ export function StoryReader({
           </button>
         </div>
       </div>
+
+      {/* Personal Fieldnotes Editor */}
+      <section className="personal-fieldnotes" aria-label="Personal fieldnotes">
+        <div className="fieldnotes-header">
+          <label htmlFor="story-fieldnote">
+            <StickyNote size={13} /> My Fieldnotes
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {noteSaved && (
+              <span className="field-note" style={{ margin: 0 }}>
+                Saved
+              </span>
+            )}
+            {draftNote !== (s.note || "") && (
+              <button
+                type="button"
+                className="button"
+                style={{ padding: "3px 8px", fontSize: "10px" }}
+                onClick={saveNoteNow}
+              >
+                Save note
+              </button>
+            )}
+          </div>
+        </div>
+        <textarea
+          id="story-fieldnote"
+          rows={3}
+          maxLength={10000}
+          placeholder="Jot down key takeaways, open questions, or follow-up ideas (included when exporting briefings)…"
+          value={draftNote}
+          onChange={(e) => setDraftNote(e.target.value)}
+          onBlur={saveNoteNow}
+        />
+      </section>
+
       <details className="match-details">
         <summary>Why this matched</summary>
         <div>
@@ -305,9 +501,9 @@ export function StoryReader({
           {s.ranking && (
             <dl>
               {[
-                ["Text", s.ranking.lexical],
+                ["Text (BM25F)", s.ranking.lexical],
                 ["Focus", s.ranking.focus],
-                ["Feedback", s.ranking.feedback],
+                ["Feedback (Rocchio)", s.ranking.feedback],
                 ["Freshness", s.ranking.freshness],
                 ["Context", s.ranking.context],
               ].map(([label, value]) => (
@@ -336,7 +532,7 @@ export function StoryReader({
           step="1"
           value={SUMMARY_DEPTHS.indexOf(draftDepth)}
           aria-valuetext={DEPTH_SETTINGS[draftDepth].label}
-          disabled={!text || busy}
+          disabled={!hasSourceText || busy}
           onChange={(e) =>
             setDraftDepth(SUMMARY_DEPTHS[Number(e.target.value)])
           }

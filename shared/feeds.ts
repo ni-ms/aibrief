@@ -1,15 +1,14 @@
 import type { Source, SourceKind } from "./types.ts";
+import { mediumDisplayName, mediumFeedUrl, normalizeMedium } from "./medium.ts";
 import {
-  mediumDisplayName,
-  mediumFeedUrl,
-  normalizeMedium,
-} from "./medium.ts";
+  normalizeSubstack,
+  substackDisplayName,
+  substackFeedUrl,
+} from "./substack.ts";
 import { normalizeSubreddit } from "./reddit.ts";
+import { discoveryDirectory } from "./discovery-sources.ts";
 
-const KNOWN_BLOG_FEEDS: Record<
-  string,
-  { url: string; name: string }
-> = {
+const KNOWN_BLOG_FEEDS: Record<string, { url: string; name: string }> = {
   "huggingface.co": {
     url: "https://huggingface.co/blog/feed.xml",
     name: "Hugging Face blog",
@@ -116,6 +115,8 @@ export function normalizeFeedUrl(input: string): string {
   if (KNOWN_BLOG_FEEDS[lookupKey] && !url.search) {
     return KNOWN_BLOG_FEEDS[lookupKey].url;
   }
+  const directory = discoveryDirectory(url.toString());
+  if (directory?.feedUrl) return directory.feedUrl;
 
   // Medium URLs -> canonical Medium feed URL
   if (host === "medium.com" || host.endsWith(".medium.com")) {
@@ -193,6 +194,8 @@ export function normalizeFeedUrl(input: string): string {
  * Derive a readable default display name from a blog or feed URL.
  */
 export function inferFeedName(input: string): string {
+  const directory = discoveryDirectory(input);
+  if (directory?.feedUrl) return directory.feedName || directory.name;
   try {
     const raw = input.trim();
     const withProtocol = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw)
@@ -319,6 +322,19 @@ export function detectSmartSource(input: string): {
       "Enter a blog URL, Medium @author or #tag, r/subreddit, owner/repo, or arXiv category",
     );
   }
+  const directory = discoveryDirectory(raw);
+  if (directory) {
+    if (!directory.feedUrl)
+      throw new Error(
+        `${directory.name} is not connected yet. ${directory.note}`,
+      );
+    return {
+      kind: "rss",
+      resourceId: directory.id,
+      name: directory.feedName || directory.name,
+      config: { url: directory.feedUrl },
+    };
+  }
 
   // 1. Reddit: `r/foo` or `reddit.com/r/foo`
   if (
@@ -334,7 +350,52 @@ export function detectSmartSource(input: string): {
     };
   }
 
-  // 2. Medium: `@author`, `#tag`, `tag/slug`, or `medium.com` / `*.medium.com` URL
+  // 2. Substack explicit prefix: `substack:importai`
+  if (/^substack:/i.test(raw)) {
+    const substack = normalizeSubstack(raw.replace(/^substack:/i, ""));
+    return {
+      kind: "substack",
+      resourceId: "substack",
+      name: substackDisplayName(substack),
+      config: { substack },
+    };
+  }
+
+  // 3. Lobste.rs: `lobsters:tag` or `https://lobste.rs/t/tag` or `https://lobste.rs`
+  if (
+    /^lobsters:/i.test(raw) ||
+    /^https?:\/\/(www\.)?lobste\.rs(\/|$)/i.test(raw)
+  ) {
+    let tag = "hottest";
+    if (/^lobsters:/i.test(raw)) {
+      tag = raw.slice("lobsters:".length).trim().toLowerCase() || "hottest";
+    } else {
+      const u = new URL(raw);
+      const m = u.pathname.match(/^\/t\/([a-z0-9_-]+)/i);
+      if (m) tag = m[1].toLowerCase();
+    }
+    return {
+      kind: "lobsters",
+      resourceId: "lobsters",
+      name: tag === "hottest" ? "Lobste.rs · Hottest" : `Lobste.rs · #${tag}`,
+      config: { lobsters: tag },
+    };
+  }
+
+  // 4. Hugging Face Daily Papers: `hf-papers` or `https://huggingface.co/papers`
+  if (
+    /^hf-papers$/i.test(raw) ||
+    /^https?:\/\/(www\.)?huggingface\.co\/papers\/?$/i.test(raw)
+  ) {
+    return {
+      kind: "hf-papers",
+      resourceId: "hf-papers",
+      name: "Hugging Face Daily Papers",
+      config: {},
+    };
+  }
+
+  // 5. Medium: `@author`, `#tag`, `tag/slug`, or `medium.com` / `*.medium.com` URL
   if (
     raw.startsWith("@") ||
     raw.startsWith("#") ||
@@ -353,7 +414,7 @@ export function detectSmartSource(input: string): {
     };
   }
 
-  // 3. GitHub repository: `owner/repo` or `https://github.com/owner/repo`
+  // 6. GitHub repository: `owner/repo` or `https://github.com/owner/repo`
   if (
     /^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/i.test(
       raw,
@@ -384,7 +445,7 @@ export function detectSmartSource(input: string): {
     };
   }
 
-  // 4. OpenReview venue: `Venue.cc/2026/Conference`
+  // 7. OpenReview venue: `Venue.cc/2026/Conference`
   if (/^[A-Za-z0-9_.-]+\/\d{4}\/[A-Za-z0-9_/-]+$/.test(raw)) {
     const isNeurips = raw.startsWith("NeurIPS.cc/");
     return {
@@ -395,7 +456,7 @@ export function detectSmartSource(input: string): {
     };
   }
 
-  // 5. arXiv category list: `cs.AI`, `quant-ph`, `cs.AI, cs.LG`
+  // 8. arXiv category list: `cs.AI`, `quant-ph`, `cs.AI, cs.LG`
   const categories = raw
     .split(",")
     .map((c) => c.trim())
@@ -416,7 +477,7 @@ export function detectSmartSource(input: string): {
     };
   }
 
-  // 6. Bluesky profile URL or `.bsky.social` handle
+  // 9. Bluesky profile URL or `.bsky.social` handle
   if (/^https?:\/\/bsky\.app\/profile\/([a-zA-Z0-9.:-]+)\/?$/i.test(raw)) {
     const actor = raw.match(/\/profile\/([a-zA-Z0-9.:-]+)/i)![1].toLowerCase();
     return {
@@ -436,7 +497,7 @@ export function detectSmartSource(input: string): {
     };
   }
 
-  // 7. Default to smart Blog / RSS URL
+  // 10. Default to smart Blog / RSS URL
   const url = normalizeFeedUrl(raw);
   return {
     kind: "rss",
@@ -444,4 +505,78 @@ export function detectSmartSource(input: string): {
     name: inferFeedName(raw),
     config: { url },
   };
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+/**
+ * Export configured feeds as a standard OPML 2.0 XML document.
+ */
+export function exportOpml(sources: Source[]): string {
+  const outlines: string[] = [];
+  for (const s of sources) {
+    let xmlUrl = "";
+    if (s.kind === "rss" && s.config.url) xmlUrl = s.config.url;
+    else if (s.kind === "medium" && s.config.medium) {
+      try {
+        xmlUrl = mediumFeedUrl(s.config.medium);
+      } catch {}
+    } else if (s.kind === "substack" && s.config.substack) {
+      try {
+        xmlUrl = substackFeedUrl(s.config.substack);
+      } catch {}
+    } else if (s.kind === "arxiv" && s.config.categories?.length) {
+      xmlUrl = `https://rss.arxiv.org/rss/${s.config.categories.join("+")}`;
+    } else if (s.kind === "github" && s.config.repo) {
+      xmlUrl = `https://github.com/${s.config.repo}/releases.atom`;
+    }
+    if (!xmlUrl) continue;
+    outlines.push(
+      `      <outline type="rss" text="${escapeXml(s.name)}" title="${escapeXml(s.name)}" xmlUrl="${escapeXml(xmlUrl)}" />`,
+    );
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Fieldnotes Subscriptions</title>
+    <dateCreated>${new Date().toUTCString()}</dateCreated>
+  </head>
+  <body>
+    <outline text="Fieldnotes Feeds" title="Fieldnotes Feeds">
+${outlines.join("\n")}
+    </outline>
+  </body>
+</opml>`;
+}
+
+/**
+ * Parse an OPML XML file into a list of feed candidates `{ name, url }`.
+ */
+export function parseOpml(xml: string): { name: string; url: string }[] {
+  const results: { name: string; url: string }[] = [];
+  const seen = new Set<string>();
+  for (const match of xml.matchAll(/<outline\b[^>]*>/gi)) {
+    const tag = match[0];
+    const xmlUrl = tag.match(/\bxmlUrl\s*=\s*["']([^"']+)["']/i)?.[1]?.trim();
+    if (!xmlUrl) continue;
+    const title =
+      tag.match(/\b(?:title|text)\s*=\s*["']([^"']+)["']/i)?.[1]?.trim() || "";
+    try {
+      const normalized = normalizeFeedUrl(xmlUrl);
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      results.push({
+        name: title || inferFeedName(normalized),
+        url: normalized,
+      });
+    } catch {}
+  }
+  return results.slice(0, 40);
 }

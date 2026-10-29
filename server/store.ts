@@ -12,6 +12,9 @@ import type {
   Source,
   Story,
 } from "../shared/types.ts";
+
+const GITHUB_CLUSTER_WINDOW_MS = 14 * 86400000;
+
 export class Store {
   db: SqlDatabase;
   constructor(db: SqlDatabase) {
@@ -44,6 +47,22 @@ export class Store {
       )
       .run(source.id, JSON.stringify(source));
   }
+  removeSource(id: string) {
+    this.db.exec("BEGIN");
+    try {
+      this.db
+        .prepare(
+          "DELETE FROM item_history WHERE item_id IN (SELECT id FROM items WHERE source_id=?)",
+        )
+        .run(id);
+      this.db.prepare("DELETE FROM items WHERE source_id=?").run(id);
+      this.db.prepare("DELETE FROM sources WHERE id=?").run(id);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
   profile(): Profile {
     return JSON.parse(
       (
@@ -66,6 +85,9 @@ export class Store {
     let added = 0;
     this.db.exec("BEGIN");
     try {
+      this.db
+        .prepare("INSERT OR IGNORE INTO sources VALUES(?,?)")
+        .run(source.id, JSON.stringify(source));
       for (const entry of incoming) {
         const canonical = normalizeUrl(entry.canonicalUrl);
         const old = this.db
@@ -152,44 +174,51 @@ export class Store {
   items(): Item[] {
     const sourceList = this.sources();
     const names = Object.fromEntries(sourceList.map((s) => [s.id, s.name]));
+    const fallbackNames: Record<string, string> = {
+      arxiv: "arXiv",
+      "hf-papers": "Hugging Face Papers",
+      "hn-algolia": "Hacker News",
+      "github-search": "GitHub",
+    };
+    const fallbackKinds: Record<string, Item["sourceKind"]> = {
+      arxiv: "arxiv",
+      "hf-papers": "hf-papers",
+      "hn-algolia": "hn",
+      "github-search": "github",
+    };
     return (
       this.db
         .prepare("SELECT * FROM items ORDER BY first_seen_at DESC LIMIT 5000")
         .all() as Record<string, unknown>[]
-    ).map((r) => ({
-      id: Number(r.id),
-      groupId: Number(r.group_id),
-      sourceId: String(r.source_id),
-      sourceName:
-        sourceList.find((s) => s.id === String(r.source_id))?.kind === "arxiv"
-          ? "arXiv"
-          : names[String(r.source_id)],
-      sourceKind: sourceList.find((s) => s.id === String(r.source_id))?.kind,
-      metadata: JSON.parse(String(r.metadata || "{}")),
-      externalId: String(r.external_id),
-      canonicalUrl: String(r.canonical_url),
-      title: String(r.title),
-      abstract: String(r.abstract),
-      releaseText: String(r.release_text),
-      publishedAt: r.published_at as string | null,
-      firstSeenAt: String(r.first_seen_at),
-      lastFetchedAt: String(r.last_fetched_at),
-      contentHash: String(r.content_hash),
-      topics: JSON.parse(String(r.topics)),
-      kind: r.kind as Item["kind"],
-      links: JSON.parse(String(r.links)),
-    }));
+    ).map((r) => {
+      const sid = String(r.source_id);
+      const matchedSource = sourceList.find((s) => s.id === sid);
+      return {
+        id: Number(r.id),
+        groupId: Number(r.group_id),
+        sourceId: sid,
+        sourceName:
+          matchedSource?.kind === "arxiv"
+            ? "arXiv"
+            : names[sid] || fallbackNames[sid] || sid,
+        sourceKind: matchedSource?.kind || fallbackKinds[sid],
+        metadata: JSON.parse(String(r.metadata || "{}")),
+        externalId: String(r.external_id),
+        canonicalUrl: String(r.canonical_url),
+        title: String(r.title),
+        abstract: String(r.abstract),
+        releaseText: String(r.release_text),
+        publishedAt: r.published_at as string | null,
+        firstSeenAt: String(r.first_seen_at),
+        lastFetchedAt: String(r.last_fetched_at),
+        contentHash: String(r.content_hash),
+        topics: JSON.parse(String(r.topics)),
+        kind: r.kind as Item["kind"],
+        links: JSON.parse(String(r.links)),
+      };
+    });
   }
-  stories(): Story[] {
-    const profile = this.profile();
-    const states = new Map(
-      (
-        this.db
-          .prepare("SELECT * FROM personal_state WHERE profile_id=?")
-          .all("local") as Record<string, any>[]
-      ).map((r) => [r.group_id, r]),
-    );
-    const allItems = this.items();
+  private clusteredGroups(allItems = this.items()): Map<number, Item[]> {
     const parent = new Map<number, number>();
     const find = (i: number): number => {
       if (!parent.has(i)) parent.set(i, i);
@@ -213,9 +242,21 @@ export class Store {
       if (key) {
         const existing = keyToItems.get(key) || [];
         for (const other of existing) {
-          if (item.sourceId !== other.sourceId) {
-            union(item.groupId, other.groupId);
+          if (item.sourceId === other.sourceId) continue;
+          // Bound GitHub repository clustering to a 14-day window so discussions
+          // of older releases don't merge into a newer release months later.
+          if (key.startsWith("github:")) {
+            const tA = Date.parse(item.publishedAt || item.firstSeenAt);
+            const tB = Date.parse(other.publishedAt || other.firstSeenAt);
+            if (
+              !Number.isNaN(tA) &&
+              !Number.isNaN(tB) &&
+              Math.abs(tA - tB) > GITHUB_CLUSTER_WINDOW_MS
+            ) {
+              continue;
+            }
           }
+          union(item.groupId, other.groupId);
         }
         existing.push(item);
         keyToItems.set(key, existing);
@@ -227,6 +268,18 @@ export class Store {
       const root = find(item.groupId);
       groups.set(root, [...(groups.get(root) || []), item]);
     }
+    return groups;
+  }
+  stories(): Story[] {
+    const profile = this.profile();
+    const states = new Map(
+      (
+        this.db
+          .prepare("SELECT * FROM personal_state WHERE profile_id=?")
+          .all("local") as Record<string, any>[]
+      ).map((r) => [r.group_id, r]),
+    );
+    const groups = this.clusteredGroups();
     const history = new Map(
       (
         this.db
@@ -257,7 +310,7 @@ export class Store {
             b.releaseText.length -
             (a.abstract.length + a.releaseText.length),
       )[0];
-      const clusterGroupIds = items.map((i) => i.groupId);
+      const clusterGroupIds = [...new Set(items.map((i) => i.groupId))];
       const clusterStates = clusterGroupIds
         .map((id) => states.get(id))
         .filter((s): s is Record<string, any> => Boolean(s));
@@ -268,6 +321,11 @@ export class Store {
         (acc, s) => (s.feedback !== 0 ? s.feedback : acc),
         state?.feedback || 0,
       );
+      const note =
+        state?.note ||
+        clusterStates.find((s) => typeof s.note === "string" && s.note.trim())
+          ?.note ||
+        "";
       const version = best.metadata?.arxivVersion;
       const revisionObserved =
         version && version > 1 && best.metadata?.arxivId
@@ -309,6 +367,7 @@ export class Store {
         saved: isSaved,
         dismissed: isDismissed,
         feedback,
+        note,
         score: 0,
         reasons: [],
         followedTopicIds: storyTopicIds,
@@ -350,6 +409,7 @@ export class Store {
       saved: boolean;
       dismissed: boolean;
       feedback: number;
+      note: string;
     }>,
   ) {
     if (!this.db.prepare("SELECT id FROM story_groups WHERE id=?").get(groupId))
@@ -357,33 +417,46 @@ export class Store {
     const prior = this.db
       .prepare("SELECT * FROM personal_state WHERE profile_id=? AND group_id=?")
       .get("local", groupId) as Record<string, any> | undefined;
+    const currentStory = this.stories().find((s) => s.groupId === groupId)!;
     const next = {
-      read: !!prior?.read,
-      saved: !!prior?.saved,
-      dismissed: !!prior?.dismissed,
-      feedback: prior?.feedback || 0,
+      read: currentStory?.read ?? !!prior?.read,
+      saved: currentStory?.saved ?? !!prior?.saved,
+      dismissed: currentStory?.dismissed ?? !!prior?.dismissed,
+      feedback: currentStory?.feedback ?? (prior?.feedback || 0),
+      note: currentStory?.note ?? (prior?.note || ""),
       ...patch,
     };
-    const currentStory = this.stories().find((s) => s.groupId === groupId)!;
     const token =
       patch.read === true
         ? `${currentStory.contentHash}:${currentStory.metadata?.arxivVersion || 0}`
         : patch.read === false
           ? null
           : prior?.read_token || null;
-    this.db
-      .prepare(
-        "INSERT INTO personal_state(profile_id,group_id,read,saved,dismissed,feedback,read_token) VALUES(?,?,?,?,?,?,?) ON CONFLICT(profile_id,group_id) DO UPDATE SET read=excluded.read,saved=excluded.saved,dismissed=excluded.dismissed,feedback=excluded.feedback,read_token=excluded.read_token",
-      )
-      .run(
+
+    // Apply personal state consistently across all groupIds in the same clustered story
+    const clusterItems =
+      [...this.clusteredGroups().values()].find((items) =>
+        items.some((i) => i.groupId === groupId),
+      ) || [];
+    const targetGroupIds = [
+      ...new Set([groupId, ...clusterItems.map((i) => i.groupId)]),
+    ];
+    const upsertState = this.db.prepare(
+      "INSERT INTO personal_state(profile_id,group_id,read,saved,dismissed,feedback,read_token,note) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(profile_id,group_id) DO UPDATE SET read=excluded.read,saved=excluded.saved,dismissed=excluded.dismissed,feedback=excluded.feedback,read_token=excluded.read_token,note=excluded.note",
+    );
+    for (const targetId of targetGroupIds) {
+      upsertState.run(
         "local",
-        groupId,
+        targetId,
         +next.read,
         +next.saved,
         +next.dismissed,
         next.feedback,
-        token,
+        targetId === groupId ? token : null,
+        next.note,
       );
+    }
+
     if (patch.feedback !== undefined) {
       const profile = this.profile();
       const story = this.stories().find((s) => s.groupId === groupId);

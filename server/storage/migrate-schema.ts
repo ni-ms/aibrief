@@ -12,6 +12,8 @@ export function migrateSchema(db: SqlDatabase, schema: string) {
     .all() as { name: string }[];
   if (!personalColumns.some((c) => c.name === "read_token"))
     db.exec("ALTER TABLE personal_state ADD COLUMN read_token TEXT");
+  if (!personalColumns.some((c) => c.name === "note"))
+    db.exec("ALTER TABLE personal_state ADD COLUMN note TEXT NOT NULL DEFAULT ''");
   db.exec(`UPDATE personal_state SET read_token=(
     SELECT i.content_hash||':'||COALESCE(json_extract(i.metadata,'$.arxivVersion'),0) FROM items i
     WHERE i.group_id=personal_state.group_id ORDER BY length(i.abstract)+length(i.release_text) DESC LIMIT 1

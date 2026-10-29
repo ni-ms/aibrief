@@ -5,6 +5,25 @@ export async function handleProxyRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
+  const host = req.headers.host || "";
+  if (host && !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) {
+    res.statusCode = 403;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: "Local access only" }));
+    return;
+  }
+  const origin = req.headers.origin;
+  const fetchSite = req.headers["sec-fetch-site"];
+  if (
+    (origin && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) ||
+    (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none")
+  ) {
+    res.statusCode = 403;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: "Same-origin local request required" }));
+    return;
+  }
+
   const reqUrl = new URL(req.url || "", "http://127.0.0.1");
   const targetUrl = reqUrl.searchParams.get("url");
 

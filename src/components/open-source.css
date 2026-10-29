@@ -57,8 +57,8 @@
   border-radius: 3px;
 }
 .oss-collection.selected {
-  background: #edece3;
-  border-color: #e0dfd2;
+  background: var(--surface-muted);
+  border-color: var(--line);
 }
 .oss-collection-select {
   display: flex;
@@ -74,8 +74,8 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  background: #e0e2d6;
-  color: #5e6d4c;
+  background: var(--surface-muted);
+  color: var(--quiet);
   border-radius: 3px;
   font: 10px var(--mono);
   flex-shrink: 0;
@@ -129,7 +129,7 @@
 }
 .oss-how {
   margin-top: 42px;
-  color: #8d917f;
+  color: var(--quiet);
 }
 .oss-how > svg {
   margin-bottom: 12px;
@@ -137,7 +137,7 @@
 .oss-how h2 {
   font-size: 12px;
   font-weight: 500;
-  color: #59634e;
+  color: var(--quiet);
   margin-bottom: 8px;
 }
 .oss-how p,
@@ -191,10 +191,10 @@
   padding-left: 12px;
   flex: 1;
   min-width: 130px;
-  color: #8c9380;
+  color: var(--quiet);
 }
 .oss-search:focus-within {
-  outline: 2px solid #d84c2b66;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 .oss-search input {
@@ -237,9 +237,9 @@
   color: var(--ink);
 }
 .oss-topics button.active {
-  color: #536542;
-  border-color: #dce1ce;
-  background: #edf0e4;
+  color: var(--quiet);
+  border-color: var(--line);
+  background: var(--surface-muted);
 }
 .oss-results-meta {
   display: flex;
@@ -262,7 +262,7 @@
 }
 .oss-project-index {
   font: 10px var(--mono);
-  color: #a1a391;
+  color: var(--quiet);
   padding-top: 4px;
   min-width: 20px;
 }
@@ -284,11 +284,11 @@
 }
 .oss-project h3 a > span {
   font-weight: 400;
-  color: #737d65;
+  color: var(--quiet);
 }
 .oss-project h3 svg {
   margin-left: 7px;
-  color: #929887;
+  color: var(--quiet);
 }
 .oss-project h3 a:hover,
 .oss-project h3 a:hover > span {
@@ -298,7 +298,7 @@
   margin: 8px 0 11px;
   font-size: 12px;
   line-height: 1.8;
-  color: #616956;
+  color: var(--quiet);
   overflow-wrap: anywhere;
   max-width: 780px;
 }
@@ -311,18 +311,18 @@
 }
 .oss-project-topics button {
   border-radius: 2px;
-  background: #eeefe7;
-  color: #748165;
+  background: var(--surface-muted);
+  color: var(--quiet);
   padding: 2px 6px;
   font: 9px var(--mono);
 }
 .oss-project-topics button:hover {
-  background: #e1e6d6;
-  color: #4d5d3c;
+  background: var(--surface-muted);
+  color: var(--quiet);
 }
 .oss-project-topics > span {
   font: 9px var(--mono);
-  color: #929887;
+  color: var(--quiet);
 }
 .oss-project-meta {
   display: flex;
@@ -330,7 +330,7 @@
   align-items: center;
   flex-wrap: wrap;
   font: 9px var(--mono);
-  color: #8a907e;
+  color: var(--quiet);
 }
 .oss-project-meta > span {
   display: flex;
@@ -342,30 +342,30 @@
   width: 6px;
   display: inline-block;
   border-radius: 50%;
-  background: #919d83;
+  background: var(--success);
 }
 .oss-language.python {
-  background: #bba25e;
+  background: var(--success);
 }
 .oss-language.rust {
-  background: #b47b5e;
+  background: var(--success);
 }
 .oss-language.typescript {
-  background: #6c99a4;
+  background: var(--success);
 }
 .oss-language.javascript {
-  background: #bbae64;
+  background: var(--success);
 }
 .oss-language.c {
-  background: #8e83b1;
+  background: var(--success);
 }
 .oss-language.go {
-  background: #66a6a1;
+  background: var(--success);
 }
 .oss-archived {
   font: 8px var(--mono);
-  color: #9b7c55;
-  border: 1px solid #ded4bd;
+  color: var(--quiet);
+  border: 1px solid var(--line);
   border-radius: 2px;
   padding: 2px 5px;
 }
@@ -376,9 +376,9 @@
   margin-top: 1px;
 }
 .oss-follow.followed {
-  color: #5c7447;
-  background: #edf0e6;
-  border-color: #d8dfca;
+  color: var(--quiet);
+  background: var(--surface-muted);
+  border-color: var(--line);
 }
 .oss-error {
   display: flex;
@@ -386,9 +386,9 @@
   justify-content: space-between;
   gap: 15px;
   font-size: 11px;
-  background: #f8eee2;
-  border: 1px solid #e9d6bd;
-  color: #8a6137;
+  background: var(--warning-bg);
+  border: 1px solid var(--line);
+  color: var(--warning);
   padding: 12px;
   margin-bottom: 17px;
   overflow-wrap: anywhere;
@@ -396,10 +396,10 @@
 .oss-empty {
   padding: 60px 20px;
   text-align: center;
-  color: #8b947f;
+  color: var(--quiet);
 }
 .oss-empty h3 {
-  color: #59634d;
+  color: var(--quiet);
   margin: 15px 0 7px;
   font-weight: 450;
   font-size: 17px;

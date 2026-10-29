@@ -17,7 +17,7 @@
   border-radius: 8px;
 }
 .smart-source-icon {
-  color: #6a7d56;
+  color: var(--quiet);
   flex-shrink: 0;
 }
 .smart-source-row input {
@@ -36,8 +36,8 @@
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 4px;
-  background: #edf1e6;
-  color: #556843;
+  background: var(--surface-muted);
+  color: var(--quiet);
   white-space: nowrap;
 }
 .smart-source-error {
@@ -79,29 +79,88 @@
 }
 .resource-page .resource-card > p {
   font-size: 13px;
-  color: #626c58;
+  color: var(--quiet);
+}
+.resource-page .directory-card > .source-caveat {
+  color: var(--quiet);
+}
+.resource-page .directory-card.unavailable .resource-heading,
+.resource-page .directory-card.unavailable h2 {
+  opacity: 1;
+}
+.resource-page .directory-card.unavailable h2 {
+  color: var(--ink);
+}
+.resource-page .directory-card .resource-unavailable > p {
+  font-size: 12px;
+  line-height: 1.65;
 }
 .resource-page .resource-category {
-  color: #69735e;
+  color: var(--quiet);
   font-size: 10px;
 }
 .resource-letter.reddit {
-  color: #c44a26;
-  background: #fae9df;
-  border-color: #e8c8b7;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--line);
 }
 .resource-letter.medium {
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 700;
   font-size: 15px;
-  color: #242424;
-  background: #e9ebe4;
-  border-color: #d2d6c8;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+.resource-letter.substack {
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--line);
+}
+.resource-letter.hf-papers {
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+.resource-letter.lobsters {
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+.github-stars-callout {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--quiet);
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 10px;
+}
+.github-stars-callout:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+.oss-embedded {
+  margin-top: 38px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+.oss-embedded-title {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.9px;
 }
 .resource-page .resource-card > .source-transport {
   min-height: 0;
   margin-top: 12px;
-  color: #64704e;
+  color: var(--quiet);
   font-size: 11px;
   font-weight: 600;
 }
@@ -109,19 +168,19 @@
   min-height: 0;
   margin-top: 8px;
   padding: 10px 12px;
-  background: #fff7e9;
+  background: var(--surface-muted);
   border-radius: 5px;
-  color: #785c39;
+  color: var(--warning);
   font-size: 11px;
   line-height: 1.65;
 }
 .resource-page .resource-connection {
-  color: #667455;
+  color: var(--quiet);
   font-size: 12px;
   gap: 7px;
 }
 .resource-page .quiet-button {
-  color: #536842;
+  color: var(--quiet);
   font-size: 12px;
   min-height: 32px;
 }
@@ -129,11 +188,11 @@
   gap: 12px;
 }
 .resource-page .feed-name {
-  color: #566746;
+  color: var(--quiet);
   font-size: 13px;
 }
 .resource-page .feed-sync {
-  color: #77816c;
+  color: var(--quiet);
   font-size: 10px;
 }
 .resource-page .switch {
@@ -146,15 +205,15 @@
   height: 14px;
 }
 .resource-page .source-error {
-  color: #94603b;
+  color: var(--warning);
   font-size: 11px;
 }
 .resource-page .form-title {
-  color: #536543;
+  color: var(--quiet);
   font-size: 13px;
 }
 .resource-page .resource-form label {
-  color: #59674e;
+  color: var(--quiet);
   font-size: 12px;
 }
 .resource-page .resource-form input {
@@ -171,7 +230,7 @@
 }
 .source-form-note {
   margin: 12px 0;
-  color: #6e7764;
+  color: var(--quiet);
   font-size: 11px;
 }
 .subreddit-suggestions {
@@ -188,19 +247,19 @@
 .subreddit-suggestions button {
   padding: 4px 7px;
   border-radius: 4px;
-  background: #f1f2e9;
-  color: #606e51;
+  background: var(--surface-muted);
+  color: var(--quiet);
   font-size: 11px;
 }
 .subreddit-suggestions button:hover {
-  background: #e5eadc;
+  background: var(--surface-muted);
 }
 .sources-empty {
   padding: 32px 0;
   color: var(--quiet);
 }
 .resource-page .footnote {
-  color: #717b65;
+  color: var(--quiet);
   font-size: 12px;
 }
 @media (max-width: 700px) {
@@ -229,3 +288,11 @@
     gap: 20px;
   }
 }
+
+.discovery-sources-intro { margin: 20px 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.discovery-sources-intro h2 { font-size: 17px; font-weight: 600; }
+.discovery-sources-intro p { margin-top: 6px; max-width: 760px; font-size: 13px; color: var(--quiet); }
+.directory-visit-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 12px; color: var(--ink); }
+.resource-letter.producthunt { color: var(--accent); background: var(--warning-bg); }
+.resource-letter.alternativeto { color: var(--success); background: var(--success-bg); }
+.resource-letter.betalist, .resource-letter.startupbase { color: var(--ink); background: var(--surface-muted); }

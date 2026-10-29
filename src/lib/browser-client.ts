@@ -5,6 +5,18 @@ const pending = new Map<
   number,
   { resolve(value: unknown): void; reject(error: Error): void }
 >();
+
+// Development updates can replace this module without a pagehide event. Release
+// its database lock before the replacement creates another worker.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    worker?.terminate();
+    worker = undefined;
+    for (const request of pending.values())
+      request.reject(new Error("Your reading desk is reloading. Please try again."));
+    pending.clear();
+  });
+}
 export function browserRequest<T>(
   path: string,
   method = "GET",

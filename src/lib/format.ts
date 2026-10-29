@@ -26,13 +26,19 @@ export const scope = (s: {
   sourceKind?: string;
   releaseText: string;
   sourceName: string;
+  metadata?: { publicationType?: string };
 }) =>
-  s.releaseText
-    ? "release excerpt"
-    : s.sourceKind === "hn" ||
-        s.sourceKind === "bluesky" ||
-        s.sourceKind === "reddit"
-      ? "post"
-      : s.sourceKind === "rss" || s.sourceKind === "medium"
-        ? "article excerpt"
-        : "abstract";
+  s.metadata?.publicationType === "launch"
+    ? "launch excerpt"
+    : s.releaseText
+      ? "release excerpt"
+      : s.sourceKind === "hn" ||
+          s.sourceKind === "bluesky" ||
+          s.sourceKind === "reddit" ||
+          s.sourceKind === "lobsters"
+        ? "post"
+        : s.sourceKind === "rss" ||
+            s.sourceKind === "medium" ||
+            s.sourceKind === "substack"
+          ? "article excerpt"
+          : "abstract";

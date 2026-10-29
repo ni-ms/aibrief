@@ -1,7 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import type { Profile } from "../../shared/types.ts";
 import { deriveTerms } from "../../shared/interests.ts";
+
+import { INTEREST_STARTERS } from "../../shared/onboarding.ts";
+
 const split = (value: string) => [
   ...new Set(
     value
@@ -61,6 +64,35 @@ export function Interests({
           }
         }}
       >
+        <div style={{ marginBottom: "18px" }}>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              color: "var(--quiet)",
+              marginBottom: "8px",
+            }}
+          >
+            <Sparkles size={13} /> Quick starter packs (click to pre-fill)
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {INTEREST_STARTERS.map((pack) => (
+              <button
+                key={pack.id}
+                type="button"
+                className="button"
+                onClick={() => {
+                  setPrompt(`Follow ${pack.prompt}.`);
+                  setFocus(pack.focus.join(", "));
+                }}
+              >
+                {pack.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <label htmlFor="interest-prompt">What are you following?</label>
         <textarea
           id="interest-prompt"
@@ -112,10 +144,10 @@ export function Interests({
       <details className="method-details">
         <summary>How selection works</summary>
         <p>
-          Title-weighted keyword matching with length normalization, focus
-          phrases, freshness, and your explicit more/less feedback. A briefing
-          spreads attention across sources and avoids repetitive titles. No
-          model decides the ranking.
+          Field-weighted BM25F matching across title, metadata, and body with
+          phrase proximity (SDM), local 384-dimensional semantic embeddings,
+          Rocchio preference centroid feedback, and Maximal Marginal Relevance
+          (MMR) briefing diversification.
         </p>
         <p>
           Recognized fields add matching arXiv categories. Configure other feeds

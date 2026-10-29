@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   Bookmark,
-  Check,
   Cpu,
   Database,
-  ExternalLink,
+  Download,
   Layers,
+  MessageSquarePlus,
   Moon,
   Plus,
   Radio,
@@ -17,11 +17,12 @@ import {
   X,
 } from "lucide-react";
 import type { Source, Story } from "../../shared/types.ts";
+import { detectSmartSource } from "../../shared/feeds.ts";
 
 export interface CommandItem {
   id: string;
   label: string;
-  section: "Views" | "Actions" | "Sources" | "Settings" | "Quick Add";
+  section: "Quick Add" | "Views" | "Actions" | "Sources" | "Settings";
   description?: string;
   icon: typeof Search;
   action: () => void;
@@ -37,6 +38,10 @@ export function CommandPalette({
   onToggleTheme,
   onSummarizeStory,
   onOpenDiscover,
+  onQuickAddSource,
+  onExportBriefingHtml,
+  onOpenFeedback,
+  onRedoOnboarding,
   currentStory,
   sources = [],
   isDark = false,
@@ -49,7 +54,11 @@ export function CommandPalette({
   onRefreshSource: (sourceId: string) => void;
   onToggleTheme: () => void;
   onSummarizeStory?: (story: Story) => void;
-  onOpenDiscover: () => void;
+  onOpenDiscover: (initialQuery?: string) => void;
+  onQuickAddSource?: (source: Source) => Promise<void>;
+  onExportBriefingHtml?: () => void;
+  onOpenFeedback?: () => void;
+  onRedoOnboarding?: () => void;
   currentStory?: Story | null;
   sources?: Source[];
   isDark?: boolean;
@@ -67,9 +76,65 @@ export function CommandPalette({
     }
   }, [open]);
 
+  const detectedSource = useMemo(() => {
+    const q = query.trim();
+    if (!q || q.length < 3) return null;
+    if (
+      q.startsWith("@") ||
+      q.startsWith("#") ||
+      /^(?:r\/|tag\/|topic\/|substack:|lobsters:|hf-papers$)/i.test(q) ||
+      /^https?:\/\//i.test(q) ||
+      /^[a-z0-9-]+\.(?:com|org|io|net|dev|ai|rs|co)(\/|$)/i.test(q) ||
+      /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/i.test(q)
+    ) {
+      try {
+        return detectSmartSource(q);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }, [query]);
+
   const commands = useMemo<CommandItem[]>(() => {
-    const list: CommandItem[] = [
-      // Views
+    const list: CommandItem[] = [];
+
+    if (detectedSource && onQuickAddSource) {
+      list.push({
+        id: `instant-add-${detectedSource.name}`,
+        label: `Add Source: ${detectedSource.name}`,
+        section: "Quick Add",
+        description: `Connect ${detectedSource.kind} feed directly to your sources`,
+        icon: Plus,
+        action: () => {
+          void onQuickAddSource({
+            id: `${detectedSource.resourceId}-${crypto.randomUUID().slice(0, 8)}`,
+            kind: detectedSource.kind,
+            resourceId: detectedSource.resourceId,
+            name: detectedSource.name,
+            config: detectedSource.config,
+            enabled: true,
+            lastAttempt: null,
+            lastSuccess: null,
+            error: null,
+          });
+        },
+      });
+    }
+
+    if (query.trim().length >= 2) {
+      list.push({
+        id: `instant-discover-${query.trim()}`,
+        label: `Search & Follow Topic: “${query.trim()}”`,
+        section: "Quick Add",
+        description: "Search across arXiv, Hacker News, HF Papers & GitHub",
+        icon: Search,
+        action: () => onOpenDiscover(query.trim()),
+      });
+    }
+
+    // Views
+    list.push(
       {
         id: "view-focus",
         label: "Go to For You (Briefing)",
@@ -163,16 +228,40 @@ export function CommandPalette({
         section: "Actions",
         description: "Live upstream search across arXiv, HN, HF, and GitHub",
         icon: Search,
-        action: onOpenDiscover,
+        action: () => onOpenDiscover(),
       },
       {
         id: "action-theme",
-        label: isDark ? "Switch to Editorial Light mode" : "Switch to Carbon Dark mode",
+        label: isDark
+          ? "Switch to Editorial Light mode"
+          : "Switch to Carbon Dark mode",
         section: "Actions",
         icon: isDark ? Sun : Moon,
         action: onToggleTheme,
       },
-    ];
+    );
+
+    if (onExportBriefingHtml) {
+      list.push({
+        id: "action-export-html",
+        label: "Export Briefing as Standalone Webpage (.html)",
+        section: "Actions",
+        description: "Save a self-contained HTML digest of Today's Briefing",
+        icon: Download,
+        action: onExportBriefingHtml,
+      });
+    }
+
+    if (onOpenFeedback) {
+      list.push({
+        id: "action-feedback",
+        label: "Suggest an Improvement or New Source",
+        section: "Actions",
+        description: "Submit feedback via Google Form, GitHub, or local log",
+        icon: MessageSquarePlus,
+        action: onOpenFeedback,
+      });
+    }
 
     if (currentStory && onSummarizeStory) {
       list.push({
@@ -185,7 +274,7 @@ export function CommandPalette({
       });
     }
 
-    // Quick Add
+    // Quick Add navigation
     list.push(
       {
         id: "add-source",
@@ -197,16 +286,33 @@ export function CommandPalette({
       },
       {
         id: "add-opensource",
-        label: "Follow GitHub projects & accounts",
+        label: "Explore GitHub Star Collections",
         section: "Quick Add",
-        description: "Add star collections or repositories",
+        description: "Browse public GitHub star collections inside Sources",
         icon: Plus,
         action: () => onSelectPage("open-source"),
       },
     );
 
     // Settings
+    if (onRedoOnboarding)
+      list.push({
+        id: "redo-onboarding",
+        label: "Redo onboarding",
+        section: "Settings",
+        description: "Personalize your feed with the guided setup",
+        icon: Sparkles,
+        action: onRedoOnboarding,
+      });
     list.push(
+      {
+        id: "page-settings",
+        label: "Settings & appearance",
+        section: "Settings",
+        description: "Appearance, feed personalization, AI, and backups",
+        icon: Moon,
+        action: () => onSelectPage("settings"),
+      },
       {
         id: "page-interests",
         label: "Interests & followed topics",
@@ -217,9 +323,9 @@ export function CommandPalette({
       },
       {
         id: "page-model",
-        label: "Local AI model settings",
+        label: "Local & Hybrid AI model settings",
         section: "Settings",
-        description: "Configure local WebLLM summarization engine",
+        description: "Configure WebGPU or local Ollama summarization engine",
         icon: Cpu,
         action: () => onSelectPage("model"),
       },
@@ -239,7 +345,11 @@ export function CommandPalette({
         id: `refresh-${source.id}`,
         label: `Refresh ${source.name}`,
         section: "Sources",
-        description: source.error || (source.lastSuccess ? `Last synced ${source.lastSuccess}` : "Enabled"),
+        description:
+          source.error ||
+          (source.lastSuccess
+            ? `Last synced ${source.lastSuccess}`
+            : "Enabled"),
         icon: RefreshCw,
         action: () => onRefreshSource(source.id),
       });
@@ -247,6 +357,8 @@ export function CommandPalette({
 
     return list;
   }, [
+    detectedSource,
+    query,
     onSelectView,
     onSelectPage,
     onRefreshAll,
@@ -254,6 +366,10 @@ export function CommandPalette({
     onToggleTheme,
     onSummarizeStory,
     onOpenDiscover,
+    onQuickAddSource,
+    onExportBriefingHtml,
+    onOpenFeedback,
+    onRedoOnboarding,
     currentStory,
     sources,
     isDark,
@@ -264,6 +380,7 @@ export function CommandPalette({
     const q = query.toLowerCase().trim();
     return commands.filter(
       (c) =>
+        c.id.startsWith("instant-") ||
         c.label.toLowerCase().includes(q) ||
         c.description?.toLowerCase().includes(q) ||
         c.section.toLowerCase().includes(q),
@@ -280,9 +397,7 @@ export function CommandPalette({
       setSelectedIndex((prev) => (prev + 1) % Math.max(1, filtered.length));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) =>
-        prev <= 0 ? filtered.length - 1 : prev - 1,
-      );
+      setSelectedIndex((prev) => (prev <= 0 ? filtered.length - 1 : prev - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (filtered[selectedIndex]) {
@@ -321,7 +436,7 @@ export function CommandPalette({
             ref={inputRef}
             className="command-input"
             type="text"
-            placeholder="Type a command or search (e.g. 'For you', 'Refresh', 'Substack')…"
+            placeholder="Paste any URL/@handle/#tag to add, or type a command…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

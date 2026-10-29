@@ -33,9 +33,11 @@ const timeAgo = (value: string) =>
 export function OpenSource({
   sources,
   onSave,
+  embedded = false,
 }: {
   sources: Source[];
   onSave: (source: Source) => Promise<void>;
+  embedded?: boolean;
 }) {
   const [collections, setCollections] = useState<GithubCollection[] | null>(
     null,
@@ -167,7 +169,7 @@ export function OpenSource({
     setError("");
     try {
       await onSave({
-        id: previous?.id || `github-${crypto.randomUUID()}`,
+        id: previous?.id || `github-${crypto.randomUUID().slice(0, 8)}`,
         kind: "github",
         resourceId: "github",
         name: `GitHub · ${project.fullName}`.slice(0, 100),
@@ -226,17 +228,28 @@ export function OpenSource({
   const pagination = paginate(filtered, page, 20);
   const collectionUrl = `https://github.com/${username}?tab=stars`;
 
+  const Container = embedded ? "section" : "main";
+
   return (
-    <main className="page oss-page">
+    <Container
+      id="github-stars-explorer"
+      className={embedded ? "oss-embedded" : "page oss-page"}
+    >
       <div className="page-title">
         <div>
-          <span className="kicker">GOOD CODE, GOOD COMPANY</span>
-          <h1>
-            Open source<span className="oss-title-dot">.</span>
-          </h1>
+          <span className="kicker">GITHUB STAR COLLECTIONS</span>
+          {embedded ? (
+            <h2 className="oss-embedded-title">
+              Explore Open Source Collections<span className="oss-title-dot">.</span>
+            </h2>
+          ) : (
+            <h1>
+              Open source<span className="oss-title-dot">.</span>
+            </h1>
+          )}
           <p className="oss-intro">
-            Find your next favorite project through people whose taste you
-            trust.
+            Browse public GitHub star collections and follow any project’s
+            releases directly into your feed.
           </p>
         </div>
         <span className="oss-public-label">
@@ -603,12 +616,14 @@ export function OpenSource({
           )}
         </section>
       </div>
-      <p className="footnote">
-        Collections are public GitHub stars. Following releases adds a resource
-        to your reading desk. Collections and cached projects stay available
-        between visits.
-      </p>
-    </main>
+      {!embedded && (
+        <p className="footnote">
+          Collections are public GitHub stars. Following releases adds a resource
+          to your reading desk. Collections and cached projects stay available
+          between visits.
+        </p>
+      )}
+    </Container>
   );
 }
 

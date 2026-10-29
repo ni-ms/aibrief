@@ -6,6 +6,7 @@ import { normalizeUrl, plainText, isoDate } from "../normalize.ts";
 import type { HttpClient } from "../http.ts";
 import { parser, list, XMLValidator } from "./xml.ts";
 import { assertPublicFeedUrl } from "#platform";
+import { directoryForSource } from "../../shared/discovery-sources.ts";
 
 function extractArticleLinks(
   rawHtml: string,
@@ -38,12 +39,13 @@ function extractArticleLinks(
   return links;
 }
 
-export function parseRSS(xml: string): CollectedItem[] {
+export function parseRSS(xml: string, source?: Source): CollectedItem[] {
   if (XMLValidator.validate(xml) !== true)
     throw new Error("Invalid RSS/Atom XML");
   const doc = parser.parse(xml);
   if (!doc.rss?.channel && !doc.feed)
     throw new Error("Expected an RSS or Atom feed");
+  const directory = source ? directoryForSource(source) : undefined;
   return list(doc.rss?.channel?.item || doc.feed?.entry)
     .slice(0, 60)
     .flatMap((row) => {
@@ -54,7 +56,7 @@ export function parseRSS(xml: string): CollectedItem[] {
             : list(row.link).find(
                 (l) => l["@_rel"] === "alternate" || !l["@_rel"],
               )?.["@_href"];
-        const canonicalUrl = normalizeUrl(href);
+        const canonicalUrl = normalizeUrl(he.decode(href));
         const title = plainText(row.title?.["#text"] ?? row.title);
         if (!title) return [];
         const rawBody = String(
@@ -91,12 +93,18 @@ export function parseRSS(xml: string): CollectedItem[] {
             releaseText: "",
             publishedAt: isoDate(row.pubDate || row.published || row.updated),
             topics: labelTopics(`${title} ${abstract} ${categories.join(" ")}`),
-            kind: "news" as const,
+            kind: directory?.kind || "news",
             metadata: {
-              publicationType: "article" as const,
+              publicationType:
+                directory?.kind === "tools" ? "launch" : "article",
               ...(author ? { authors: [author] } : {}),
             },
-            links: extractArticleLinks(he.decode(rawBody), canonicalUrl),
+            links: extractArticleLinks(he.decode(rawBody), canonicalUrl).map(
+              (link, index) =>
+                directory && index === 0
+                  ? { ...link, label: directory.name }
+                  : link,
+            ),
           },
         ];
       } catch {
@@ -110,7 +118,7 @@ export async function collectRSS(source: Source, http: HttpClient) {
   await assertPublicFeedUrl(feedUrl);
   const body = await http.text(feedUrl, 0, true);
   try {
-    return parseRSS(body);
+    return parseRSS(body, source);
   } catch (initialError) {
     // If the user supplied a blog homepage or article listing HTML page,
     // attempt bounded feed auto-discovery on the same public HTTPS host.
@@ -122,7 +130,7 @@ export async function collectRSS(source: Source, http: HttpClient) {
       try {
         await assertPublicFeedUrl(candidate);
         const candidateXml = await http.text(candidate, 0, true);
-        return parseRSS(candidateXml);
+        return parseRSS(candidateXml, source);
       } catch {
         // Try next discovered candidate
       }

@@ -10,16 +10,16 @@ export function ShortcutsHelp({
   if (!open) return null;
 
   const shortcuts = [
-    { key: "⌘K / Ctrl+K", desc: "Open Command Palette" },
-    { key: "j / ↓", desc: "Next story in the feed" },
-    { key: "k / ↑", desc: "Previous story in the feed" },
-    { key: "s", desc: "Toggle Save / Bookmark" },
-    { key: "m", desc: "Toggle Mark as Read" },
-    { key: "e / d", desc: "Dismiss story" },
-    { key: "o", desc: "Open original paper or article in new tab" },
-    { key: "/", desc: "Focus instant search" },
-    { key: "?", desc: "Show / hide keyboard shortcuts" },
-    { key: "ESC", desc: "Close dialogs & clear selection" },
+    { key: "⌘K / Ctrl+K", desc: "Open Command Palette & Quick-Add" },
+    { key: "j / ↓", desc: "Select next story in feed" },
+    { key: "k / ↑", desc: "Select previous story in feed" },
+    { key: "s", desc: "Save / bookmark selected story" },
+    { key: "m", desc: "Toggle read / unread status" },
+    { key: "e / d", desc: "Dismiss story & advance" },
+    { key: "o", desc: "Open original source link" },
+    { key: "[", desc: "Collapse / expand left sidebar" },
+    { key: "/", desc: "Focus search bar" },
+    { key: "?", desc: "Show / hide this shortcuts guide" },
   ];
 
   return (
@@ -36,18 +36,18 @@ export function ShortcutsHelp({
         <div className="shortcuts-header">
           <h3>Keyboard Shortcuts</h3>
           <button
-            className="button-icon"
             onClick={onClose}
-            aria-label="Close shortcuts"
+            aria-label="Close shortcuts guide"
+            style={{ color: "var(--quiet)", padding: "2px" }}
           >
             <X size={16} />
           </button>
         </div>
         <div className="shortcuts-list">
-          {shortcuts.map((s) => (
-            <div key={s.key} className="shortcut-row">
-              <span className="shortcut-desc">{s.desc}</span>
-              <kbd className="shortcut-key">{s.key}</kbd>
+          {shortcuts.map((item) => (
+            <div key={item.key} className="shortcut-row">
+              <span className="shortcut-desc">{item.desc}</span>
+              <kbd className="shortcut-key">{item.key}</kbd>
             </div>
           ))}
         </div>

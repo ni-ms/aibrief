@@ -7,8 +7,13 @@ const keys = [
   "summary-depth",
   "model",
   "ai-enabled",
+  "ai-endpoint",
+  "ai-endpoint-model",
   "theme",
+  "onboarding",
   "sidebar-collapsed",
+  "search-mode-type",
+  "feedback-log",
 ] as const;
 export function preferenceRoutes(store: Store) {
   const router = Router();
@@ -24,7 +29,7 @@ export function preferenceRoutes(store: Store) {
   });
   router.put("/preferences/:key", (req, res) => {
     const key = z.enum(keys).parse(req.params.key);
-    const { value } = z.object({ value: z.string().max(200) }).parse(req.body);
+    const { value } = z.object({ value: z.string().max(8000) }).parse(req.body);
     store.meta(`preference:${key}`, value);
     res.json({ ok: true });
   });

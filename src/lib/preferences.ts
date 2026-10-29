@@ -7,6 +7,10 @@ export const preferences = {
   get(key: string) {
     return values[key] ?? null;
   },
+  async save(key: string, value: string) {
+    await api(`/preferences/${encodeURIComponent(key)}`, "PUT", { value });
+    values[key] = value;
+  },
   set(key: string, value: string) {
     values[key] = value;
     void api(`/preferences/${encodeURIComponent(key)}`, "PUT", { value }).catch(

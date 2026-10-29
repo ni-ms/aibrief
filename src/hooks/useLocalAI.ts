@@ -12,13 +12,7 @@ import {
   summaryInterests,
   DepthSchema,
 } from "../../shared/summary.ts";
-import {
-  LocalAI,
-  MODELS,
-  checkDevice,
-  downloadBytes,
-  modelIsCached,
-} from "../local-ai";
+import { LocalAI, MODELS, summarizeViaEndpoint } from "../local-ai";
 import { api } from "../lib/api";
 export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   const [depth, setDepthState] = useState<SummaryDepth>(() => {
@@ -32,25 +26,40 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     preferences.set("summary-depth", value);
   }
   const [model, setModelState] = useState(
-    () => preferences.get("model") || MODELS[0].id,
+    () =>
+      MODELS.find((m) => m.id === preferences.get("model"))?.id || MODELS[0].id,
+  );
+  const [endpointUrl, setEndpointUrlState] = useState(
+    () => preferences.get("ai-endpoint") || "",
+  );
+  const [endpointModel, setEndpointModelState] = useState(
+    () => preferences.get("ai-endpoint-model") || "qwen2.5:7b",
   );
   const [status, setStatus] = useState<
     "off" | "loading" | "ready" | "working" | "error"
-  >("off");
+  >(() => (preferences.get("ai-endpoint") ? "ready" : "off"));
   const [preferred, setPreferredState] = useState(
     () => preferences.get("ai-enabled") !== "false",
   );
   const [message, setMessage] = useState("");
   const [progress, setProgress] = useState(0);
-  const [device, setDevice] = useState("");
-  const [bytes, setBytes] = useState<number | null>(null);
-  const [checking, setChecking] = useState(false);
   const [summaries, setSummaries] = useState<Record<string, Summary>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [interestKey, setInterestKey] = useState("");
   const engine = useRef<LocalAI | null>(null),
     generation = useRef(0);
-  useEffect(() => () => engine.current?.cancel(), []);
+  const loading = useRef<Promise<boolean> | null>(null);
+  const working = useRef(false);
+  const autoStopped = useRef("");
+  const endpointRequest = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      ++generation.current;
+      engine.current?.cancel();
+      endpointRequest.current?.abort();
+    },
+    [],
+  );
   useEffect(() => {
     if (!profile) return;
     let active = true;
@@ -58,11 +67,12 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
       .digest(
         "SHA-256",
         new TextEncoder().encode(
-          JSON.stringify(
-            profile.focusTerms?.length
+          JSON.stringify([
+            ...(profile.focusTerms?.length
               ? [profile.prompt, profile.terms, profile.focusTerms]
-              : [profile.prompt, profile.terms],
-          ),
+              : [profile.prompt, profile.terms]),
+            ...(endpointUrl.trim() ? [endpointUrl.trim()] : []),
+          ]),
         ),
       )
       .then((hash) => {
@@ -80,13 +90,17 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     profile?.prompt,
     JSON.stringify(profile?.terms),
     JSON.stringify(profile?.focusTerms),
+    endpointUrl,
   ]);
-  const key = (s: Story) =>
+  const activeModelId = endpointUrl.trim()
+    ? `endpoint:${endpointModel.trim() || "default"}`
+    : model;
+  const key = (s: Story, modelId = activeModelId) =>
     [
       s.id,
       summaryInput(s, profile ? summaryInterests(profile) : ""),
       depth,
-      model,
+      modelId,
       PROMPT_VERSION,
       interestKey,
     ].join(":");
@@ -95,7 +109,7 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     if (!story || !interestKey) return;
     let active = true;
     api<{ result: Summary } | null>(
-      `/summaries/${story.id}?model=${encodeURIComponent(model)}&interestKey=${interestKey}&depth=${depth}`,
+      `/summaries/${story.id}?model=${encodeURIComponent(activeModelId)}&interestKey=${interestKey}&depth=${depth}`,
     )
       .then((cached) => {
         if (cached && active)
@@ -110,43 +124,57 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     };
   }, [selectedKey]);
   function cancel() {
+    autoStopped.current = selectedKey;
     ++generation.current;
+    endpointRequest.current?.abort();
+    endpointRequest.current = null;
+    loading.current = null;
+    working.current = false;
     engine.current?.cancel();
     engine.current = null;
-    setStatus("off");
+    setStatus(endpointUrl.trim() ? "ready" : "off");
     setMessage("Stopped.");
   }
   function disable() {
-    preferences.set("ai-enabled", "false");
-    setPreferredState(false);
     cancel();
+    setStatus("off");
   }
   function setPreferred(value: boolean) {
     preferences.set("ai-enabled", String(value));
     setPreferredState(value);
-    if (!value) cancel();
   }
   function setModel(value: string) {
     cancel();
     setModelState(value);
     preferences.set("model", value);
-    setDevice("");
-    setBytes(null);
   }
-  async function check() {
-    setChecking(true);
-    try {
-      setDevice(await checkDevice(model));
-      setBytes(await downloadBytes(model));
-    } catch (e) {
-      setDevice((e as Error).message);
-    } finally {
-      setChecking(false);
+  function setEndpointConfig(url: string, modelName: string) {
+    cancel();
+    const cleanUrl = url.trim();
+    const cleanModel = modelName.trim() || "qwen2.5:7b";
+    setEndpointUrlState(cleanUrl);
+    setEndpointModelState(cleanModel);
+    preferences.set("ai-endpoint", cleanUrl);
+    preferences.set("ai-endpoint-model", cleanModel);
+    if (cleanUrl) {
+      setStatus("ready");
+      setMessage(`Connected to endpoint (${cleanModel}).`);
+    } else if (!engine.current) {
+      setStatus("off");
+      setMessage("");
     }
   }
-  async function enable() {
-    preferences.set("ai-enabled", "true");
-    setPreferredState(true);
+  function enable(): Promise<boolean> {
+    if (loading.current) return loading.current;
+    if (status === "ready" || status === "working")
+      return Promise.resolve(true);
+    autoStopped.current = "";
+    if (endpointUrl.trim()) {
+      setStatus("ready");
+      setErrors({});
+      setMessage("Ready to summarize with your connected model.");
+      return Promise.resolve(true);
+    }
     const current = ++generation.current;
     engine.current?.cancel();
     const local = new LocalAI();
@@ -154,61 +182,63 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     setStatus("loading");
     setMessage("Checking device…");
     setProgress(0);
-    try {
-      await local.enable(model, (p, t) => {
-        if (current === generation.current) {
-          setProgress(p);
-          setMessage(t);
-        }
-      });
-      if (current === generation.current) {
-        setStatus("ready");
-        setMessage("Ready.");
-      }
-    } catch (e) {
-      local.cancel();
-      if (current === generation.current) {
-        setStatus("error");
-        setMessage((e as Error).message);
-      }
-    }
-  }
-  useEffect(() => {
-    if (!preferred || engine.current) return;
-    const current = ++generation.current;
-    let active = true;
-    setStatus("loading");
-    setMessage("Checking cached model…");
-    void (async () => {
+    const task = (async () => {
       try {
-        setDevice(await checkDevice(model));
-        const cached = await modelIsCached(model);
-        if (!active || generation.current !== current) return;
-        if (cached) await enable();
-        else {
-          setStatus("off");
+        const loadedModel = await local.enable(model, (p, t) => {
+          if (current === generation.current) {
+            setProgress(Math.max(0, Math.min(1, p)));
+            setMessage(t);
+          }
+        });
+        if (current === generation.current) {
+          if (loadedModel !== model) {
+            setModelState(loadedModel);
+            preferences.set("model", loadedModel);
+          }
+          setErrors({});
+          setStatus("ready");
           setMessage(
-            "Enable the local model to download its files. It will start automatically on later visits while cached.",
+            loadedModel === model
+              ? "Model loaded. Select an item to get a summary."
+              : "Loaded a compact model compatible with your graphics device.",
           );
+          return true;
         }
       } catch (e) {
-        if (active && generation.current === current) {
+        local.cancel();
+        if (current === generation.current) {
+          engine.current = null;
           setStatus("error");
           setMessage((e as Error).message);
         }
+      } finally {
+        if (current === generation.current) loading.current = null;
       }
+      return false;
     })();
-    return () => {
-      active = false;
-    };
-  }, [model, preferred]);
+    loading.current = task;
+    return task;
+  }
   const [cacheChecked, setCacheChecked] = useState("");
   async function summarize(stories: Story[]) {
-    if (status !== "ready" || !profile || !interestKey) return;
-    const current = generation.current;
-    setStatus("working");
+    if (working.current || !profile || !interestKey) return;
+    working.current = true;
+    autoStopped.current = "";
     let failed = false;
+    let current = generation.current;
     try {
+      if (status !== "ready") {
+        const task = enable();
+        current = generation.current;
+        const loaded = await task;
+        if (!loaded || current !== generation.current) return;
+      }
+      setStatus("working");
+      const summaryModelId = endpointUrl.trim()
+        ? activeModelId
+        : engine.current?.modelId || model;
+      const controller = new AbortController();
+      endpointRequest.current = controller;
       for (const [index, item] of stories
         .filter((s) => s.abstract || s.releaseText)
         .slice(0, 10)
@@ -217,46 +247,67 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
         setMessage(`Reading ${index + 1}…`);
         try {
           const cached = await api<{ result: Summary } | null>(
-            `/summaries/${item.id}?model=${encodeURIComponent(model)}&interestKey=${interestKey}&depth=${depth}`,
+            `/summaries/${item.id}?model=${encodeURIComponent(summaryModelId)}&interestKey=${interestKey}&depth=${depth}`,
           );
+          if (current !== generation.current) break;
           const result =
             cached?.result ||
-            (await engine.current!.summarize(
-              item,
-              summaryInterests(profile),
-              depth,
-            ));
+            (endpointUrl.trim()
+              ? await summarizeViaEndpoint(
+                  item,
+                  summaryInterests(profile),
+                  depth,
+                  endpointUrl.trim(),
+                  endpointModel.trim(),
+                  AbortSignal.any([
+                    controller.signal,
+                    AbortSignal.timeout(120000),
+                  ]),
+                )
+              : await engine.current!.summarize(
+                  item,
+                  summaryInterests(profile),
+                  depth,
+                ));
           if (current !== generation.current) break;
           if (!cached)
             await api(`/summaries/${item.id}`, "PUT", {
               contentHash: item.contentHash,
               inputText: summaryInput(item, summaryInterests(profile)),
               depth,
-              model,
+              model: summaryModelId,
               interestKey,
               result,
             });
           if (current !== generation.current) break;
-          setSummaries((prior) => ({ ...prior, [key(item)]: result }));
-          setErrors((prior) => ({ ...prior, [key(item)]: "" }));
+          setSummaries((prior) => ({
+            ...prior,
+            [key(item, summaryModelId)]: result,
+          }));
+          setErrors((prior) => ({ ...prior, [key(item, summaryModelId)]: "" }));
         } catch (e) {
           if (current === generation.current) {
             failed = true;
             engine.current?.cancel();
+            engine.current = null;
             setStatus("error");
             setMessage((e as Error).message);
             setErrors((prior) => ({
               ...prior,
-              [key(item)]: (e as Error).message,
+              [key(item, summaryModelId)]: (e as Error).message,
             }));
           }
           break;
         }
       }
     } finally {
-      if (current === generation.current && !failed) {
-        setStatus("ready");
-        setMessage("Ready.");
+      if (current === generation.current) {
+        working.current = false;
+        endpointRequest.current = null;
+        if (!failed && (engine.current || endpointUrl.trim())) {
+          setStatus("ready");
+          setMessage("Ready.");
+        }
       }
     }
   }
@@ -268,6 +319,8 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
       interestKey &&
       cacheChecked === key(story) &&
       !summaries[key(story)] &&
+      !errors[key(story)] &&
+      autoStopped.current !== key(story) &&
       (story.abstract || story.releaseText)
     )
       void summarize([story]);
@@ -286,16 +339,15 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     setDepth,
     model,
     setModel,
+    endpointUrl,
+    endpointModel,
+    setEndpointConfig,
     preferred,
     setPreferred,
     disable,
     status,
     message,
     progress,
-    device,
-    bytes,
-    checking,
-    check,
     enable,
     cancel,
     summarize,

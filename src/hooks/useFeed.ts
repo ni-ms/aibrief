@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type {
   Feed,
@@ -18,15 +18,26 @@ export function useFeed() {
   const [since, setSince] = useState<string | null>(null);
   const visited = useRef(false),
     version = useRef(0);
-  async function load() {
+  const providerSources = useRef("");
+  const loading = useRef(0);
+  const load = useCallback(async () => {
     const current = ++version.current;
+    loading.current++;
     try {
       const next = await api<Feed>("/feed");
       if (current !== version.current) return;
       setData(next);
-      void api<DiscoveryProvider[]>("/discovery/providers")
-        .then(setProviders)
-        .catch(() => {});
+      const sourceKey = JSON.stringify(
+        next.sources.map((s) => [s.id, s.enabled, s.config]),
+      );
+      if (providerSources.current !== sourceKey) {
+        providerSources.current = sourceKey;
+        void api<DiscoveryProvider[]>("/discovery/providers")
+          .then(setProviders)
+          .catch(() => {
+            providerSources.current = "";
+          });
+      }
       setError("");
       if (!visited.current) {
         visited.current = true;
@@ -36,17 +47,48 @@ export function useFeed() {
         });
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (current === version.current) setError((e as Error).message);
+    } finally {
+      loading.current--;
     }
-  }
+  }, []);
   useEffect(() => {
     void load();
     void api<Resource[]>("/resources")
       .then(setResources)
       .catch((e) => setError(e.message));
-    const timer = setInterval(() => void load(), 5000);
-    return () => clearInterval(timer);
-  }, []);
+    return () => {
+      ++version.current;
+    };
+  }, [load]);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    let active = true;
+    const schedule = () => {
+      timer = setTimeout(
+        async () => {
+          if (!document.hidden && !loading.current) await load();
+          if (active) schedule();
+        },
+        !data || data.syncing ? 3000 : 60000,
+      );
+    };
+    schedule();
+    const onVisible = () => {
+      if (!document.hidden && !loading.current) {
+        clearTimeout(timer);
+        void load().finally(() => {
+          if (active) schedule();
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load, !!data, data?.syncing]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 4500);
@@ -74,8 +116,10 @@ export function useFeed() {
     try {
       await api(`/stories/${story.groupId}`, "PATCH", patch);
       await load();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
   }
   async function saveSource(source: Source) {
@@ -86,6 +130,11 @@ export function useFeed() {
         ? `${source.name} saved. Check Latest for collected items.`
         : `${source.name} paused.`,
     );
+  }
+  async function removeSource(sourceId: string) {
+    await api(`/sources/${sourceId}`, "DELETE");
+    await load();
+    setNotice("Source removed.");
   }
   async function saveProfile(profile: Profile) {
     await api("/profile", "PUT", profile);
@@ -127,7 +176,9 @@ export function useFeed() {
     refreshSource,
     act,
     saveSource,
+    removeSource,
     saveProfile,
     setNotice,
+    resetSince: () => setSince(null),
   };
 }

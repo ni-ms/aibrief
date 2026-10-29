@@ -162,6 +162,12 @@ export function sourcesRoutes(store: Store, collector: Collector) {
     if (body.enabled && (!old || changed || !old.enabled))
       void collector.refresh(true);
   });
+  router.delete("/sources/:id", (req, res) => {
+    const existing = store.sources().find((s) => s.id === req.params.id);
+    if (!existing) return res.status(404).json({ error: "Source not found" });
+    store.removeSource(req.params.id);
+    res.json({ ok: true });
+  });
   router.post("/sources/:id/refresh", (req, res) => {
     const source = store.sources().find((s) => s.id === req.params.id);
     if (!source) return res.status(404).json({ error: "Source not found" });
