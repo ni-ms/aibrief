@@ -92,6 +92,15 @@ CREATE TABLE IF NOT EXISTS summary_results (
   PRIMARY KEY(input_text, depth, model_id, prompt_version, interest_key)
 );
 
+-- Linked article text is fetched on demand, never during feed collection.
+CREATE TABLE IF NOT EXISTS readable_articles (
+  item_id INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+  content_hash TEXT NOT NULL,
+  url TEXT NOT NULL,
+  text TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+
 -- Observed immutable excerpts, not inferred full-paper change history.
 CREATE TABLE IF NOT EXISTS item_history (
   item_id INTEGER NOT NULL REFERENCES items(id),

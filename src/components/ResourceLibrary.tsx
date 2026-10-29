@@ -198,20 +198,22 @@ export function ResourceLibrary({
       setSmartError((e as Error).message);
     }
   }
-  const matchingResources = resources.filter((r) => {
-    if (category === "GitHub Stars") return false;
-    if (category !== "All" && r.category !== category) return false;
-    const feeds = sources.filter((s) => group(s) === r.id);
-    const searchable = [
-      r.name,
-      r.description,
-      r.category,
-      ...feeds.map(
-        (s) => `${s.name} ${Object.values(s.config).flat().join(" ")}`,
-      ),
-    ].join(" ");
-    return searchable.toLowerCase().includes(query.trim().toLowerCase());
-  });
+  const matchingResources = resources
+    .filter((r) => {
+      if (category === "GitHub Stars") return false;
+      if (category !== "All" && r.category !== category) return false;
+      const feeds = sources.filter((s) => group(s) === r.id);
+      const searchable = [
+        r.name,
+        r.description,
+        r.category,
+        ...feeds.map(
+          (s) => `${s.name} ${Object.values(s.config).flat().join(" ")}`,
+        ),
+      ].join(" ");
+      return searchable.toLowerCase().includes(query.trim().toLowerCase());
+    })
+    .sort((a, b) => Number(!!a.unavailable) - Number(!!b.unavailable));
   function openGithubStars() {
     setCategory("GitHub Stars");
     requestAnimationFrame(() => {

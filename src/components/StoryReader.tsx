@@ -63,35 +63,12 @@ function formatReadableParagraphs(raw: string): string[] {
   return chunks;
 }
 
-/** Extract clean readable paragraphs from fetched HTML without executing scripts. */
-function extractReadableHtmlText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  for (const bad of doc.querySelectorAll(
-    "script, style, nav, header, footer, aside, noscript, svg, form",
-  )) {
-    bad.remove();
-  }
-  const container =
-    doc.querySelector("article") ||
-    doc.querySelector("main") ||
-    doc.querySelector('[role="main"]') ||
-    doc.body;
-  if (!container) return "";
-  const paragraphs = [...container.querySelectorAll("p, h2, h3, li")]
-    .map((el) => (el.textContent || "").replace(/\s+/g, " ").trim())
-    .filter((line) => line.length >= 45);
-  if (paragraphs.length >= 2) {
-    return paragraphs.slice(0, 40).join("\n\n");
-  }
-  return (container.textContent || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 12000);
-}
-
 export function StoryReader({
   story: s,
   summary,
+  articleText,
+  fetchingArticle = false,
+  articleError,
   error,
   modelStatus,
   preferSummary = false,
@@ -99,12 +76,15 @@ export function StoryReader({
   onDepth,
   onAction,
   onSummary,
-  onModel,
+  onFetchArticle,
   onCancel,
   onBack,
 }: {
   story: Story | null;
   summary?: Summary;
+  articleText?: string;
+  fetchingArticle?: boolean;
+  articleError?: string;
   error?: string;
   modelStatus: string;
   preferSummary?: boolean;
@@ -112,7 +92,7 @@ export function StoryReader({
   onDepth: (depth: SummaryDepth) => void;
   onAction: (patch: Record<string, unknown>) => Promise<boolean>;
   onSummary: () => void;
-  onModel: () => void;
+  onFetchArticle: () => void;
   onCancel: () => void;
   onBack: () => void;
 }) {
@@ -121,12 +101,7 @@ export function StoryReader({
   const [draftNote, setDraftNote] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
   const [bibtexCopied, setBibtexCopied] = useState(false);
-  const [fetchedText, setFetchedText] = useState("");
-  const [fetchingArticle, setFetchingArticle] = useState(false);
-  const [fetchError, setFetchError] = useState("");
-  const articleRequest = useRef<AbortController | null>(null);
   const savedNote = useRef(s?.note || "");
-  useEffect(() => () => articleRequest.current?.abort(), []);
 
   useEffect(() => setDraftDepth(depth), [depth]);
   useEffect(() => {
@@ -134,22 +109,15 @@ export function StoryReader({
     setDraftNote(s?.note || "");
     setNoteSaved(false);
     setBibtexCopied(false);
-    setFetchedText("");
-    setFetchError("");
   }, [s?.groupId]);
   useEffect(() => {
     if (preferSummary) setTab("summary");
   }, [preferSummary]);
   useEffect(() => {
     const previous = savedNote.current;
-    setDraftNote((prior) =>
-      prior === previous ? s?.note || "" : prior,
-    );
+    setDraftNote((prior) => (prior === previous ? s?.note || "" : prior));
     savedNote.current = s?.note || "";
   }, [s?.note]);
-  useEffect(() => {
-    if (modelStatus === "error" && !summary) setTab("source");
-  }, [modelStatus, summary]);
   if (!s)
     return (
       <div className="reader reader-empty">
@@ -157,9 +125,11 @@ export function StoryReader({
         <span>Select a development</span>
       </div>
     );
-  const text = fetchedText || s.abstract || s.releaseText;
-  const hasSourceText = !!(s.abstract || s.releaseText);
-  const busy = modelStatus === "working" || modelStatus === "loading";
+  const text = articleText || s.abstract || s.releaseText;
+  const summarySource = { ...s, articleText };
+  const canSummarize = !!(text || s.canonicalUrl);
+  const busy =
+    fetchingArticle || modelStatus === "working" || modelStatus === "loading";
   const type =
     s.metadata?.publicationType ||
     (s.sourceKind === "arxiv"
@@ -173,39 +143,6 @@ export function StoryReader({
   const arxivId =
     s.metadata?.arxivId ||
     s.canonicalUrl.match(/arxiv\.org\/abs\/([^/?#]+)/i)?.[1];
-
-  async function handleFetchFullArticle() {
-    if (!s || fetchingArticle) return;
-    setFetchingArticle(true);
-    setFetchError("");
-    const controller = new AbortController();
-    articleRequest.current = controller;
-    try {
-      const res = await fetch(
-        `/api/proxy?url=${encodeURIComponent(s.canonicalUrl)}`,
-        {
-          signal: AbortSignal.any([
-            controller.signal,
-            AbortSignal.timeout(15000),
-          ]),
-        },
-      );
-      if (!res.ok) {
-        throw new Error(`Could not fetch article (HTTP ${res.status})`);
-      }
-      const html = await res.text();
-      const extracted = extractReadableHtmlText(html);
-      if (!extracted || extracted.length < 60) {
-        throw new Error("No additional readable article text found on page.");
-      }
-      setFetchedText(extracted);
-      setTab("source");
-    } catch (e) {
-      if (!controller.signal.aborted) setFetchError((e as Error).message);
-    } finally {
-      setFetchingArticle(false);
-    }
-  }
 
   async function handleCopyBibtex() {
     if (!s) return;
@@ -307,8 +244,11 @@ export function StoryReader({
           <button
             type="button"
             className="text-link"
-            onClick={() => void handleFetchFullArticle()}
-            disabled={fetchingArticle}
+            onClick={() => {
+              setTab("source");
+              onFetchArticle();
+            }}
+            disabled={busy}
             style={{ fontSize: "10px" }}
           >
             <BookOpen size={12} />
@@ -316,9 +256,9 @@ export function StoryReader({
           </button>
         )}
       </div>
-      {fetchError && (
+      {articleError && (
         <p className="field-note error-text" role="status">
-          {fetchError}
+          {articleError}
         </p>
       )}
       <div className="reader-tabs">
@@ -326,11 +266,14 @@ export function StoryReader({
           className={tab === "source" ? "active" : ""}
           onClick={() => setTab("source")}
         >
-          Source {scope(s)}
+          Source {articleText ? "article" : scope(s)}
         </button>
         <button
           className={tab === "summary" ? "active" : ""}
-          onClick={() => setTab("summary")}
+          onClick={() => {
+            setTab("summary");
+            if (!summary && !busy) onSummary();
+          }}
         >
           Local summary{summary ? <span className="tiny-dot" /> : null}
         </button>
@@ -356,7 +299,8 @@ export function StoryReader({
       ) : summary ? (
         <div className="reader-body generated">
           <div className="generated-label">
-            LOCAL AI · {DEPTH_SETTINGS[depth].label} · {summaryScope(s)}
+            LOCAL AI · {DEPTH_SETTINGS[depth].label} ·{" "}
+            {summaryScope(summarySource)}
             {text.length > SOURCE_LIMIT ? " · first 4,800 characters" : ""}
           </div>
           <h3>
@@ -378,38 +322,31 @@ export function StoryReader({
       ) : (
         <div className="summary-empty">
           <p>
-            {!hasSourceText
-              ? fetchedText
-                ? "Read the fetched article in Source. Summaries use saved source excerpts, which this item doesn’t include."
-                : "No source text to summarize."
+            {fetchingArticle
+              ? "Fetching readable article…"
               : busy
                 ? "Local AI is working."
-                : modelStatus === "ready"
-                  ? "Summarize this source excerpt."
-                  : "Load a model to summarize this excerpt. Your download is saved for next time."}
+                : error
+                  ? "The summary could not be completed. You can try again."
+                  : !text
+                    ? "Fetch the linked article and summarize it on demand."
+                    : "Summarize this source with your model. Cached downloads and summaries are reused."}
           </p>
-          {hasSourceText && (
-            <button
-              className="button"
-              onClick={
-                busy ? onCancel : modelStatus === "ready" ? onSummary : onModel
-              }
-            >
+          {canSummarize && (
+            <button className="button" onClick={busy ? onCancel : onSummary}>
               {busy ? (
                 <LoaderCircle size={14} className="spin" />
               ) : (
                 <FileText size={14} />
               )}{" "}
-              {busy
-                ? "Cancel"
-                : modelStatus === "ready"
-                  ? "Generate summary"
-                  : "Load model"}
+              {busy ? "Cancel" : error ? "Retry summary" : "Generate summary"}
             </button>
           )}
           {text && (
             <div className="reader-body source-fallback">
-              <div className="generated-label">SOURCE {scope(s)}</div>
+              <div className="generated-label">
+                SOURCE {articleText ? "article" : scope(s)}
+              </div>
               {paragraphs.map((para, idx) => (
                 <p key={idx}>{para}</p>
               ))}
@@ -532,7 +469,7 @@ export function StoryReader({
           step="1"
           value={SUMMARY_DEPTHS.indexOf(draftDepth)}
           aria-valuetext={DEPTH_SETTINGS[draftDepth].label}
-          disabled={!hasSourceText || busy}
+          disabled={!canSummarize || busy}
           onChange={(e) =>
             setDraftDepth(SUMMARY_DEPTHS[Number(e.target.value)])
           }
@@ -574,7 +511,7 @@ export function StoryReader({
         </div>
         <p className="field-note">{DEPTH_SETTINGS[draftDepth].coverage}.</p>
         <p className="field-note">
-          {summaryScope(s)}
+          {summaryScope(summarySource)}
           {text.length > SOURCE_LIMIT ? " · first 4,800 characters" : ""}.{" "}
           {draftDepth === "detailed"
             ? "Only supplied details can be covered; missing methods and evidence will be identified."

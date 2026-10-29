@@ -34,9 +34,15 @@ export const DEPTH_SETTINGS = {
 export function summaryScope(
   item: Pick<
     Item,
-    "abstract" | "releaseText" | "sourceKind" | "kind" | "metadata"
+    | "abstract"
+    | "releaseText"
+    | "sourceKind"
+    | "kind"
+    | "metadata"
+    | "articleText"
   >,
 ) {
+  if (item.articleText) return "Readable article";
   if (item.metadata?.publicationType === "launch") return "Launch excerpt";
   if (!item.abstract && item.releaseText) return "Release excerpt";
   if (
@@ -63,7 +69,13 @@ export function summaryInterests(profile: Profile) {
 export function summaryInput(
   item: Pick<
     Item,
-    "title" | "abstract" | "releaseText" | "sourceKind" | "kind" | "metadata"
+    | "title"
+    | "abstract"
+    | "releaseText"
+    | "sourceKind"
+    | "kind"
+    | "metadata"
+    | "articleText"
   >,
   interests: string,
 ) {
@@ -71,7 +83,10 @@ export function summaryInput(
     interests: interests.slice(0, 800),
     title: item.title.slice(0, 400),
     sourceScope: summaryScope(item),
-    SOURCE: (item.abstract || item.releaseText).slice(0, SOURCE_LIMIT),
+    SOURCE: (item.articleText || item.abstract || item.releaseText).slice(
+      0,
+      SOURCE_LIMIT,
+    ),
   });
 }
 export const SummarySchema = z

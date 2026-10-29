@@ -34,7 +34,7 @@ export function createApp(
     res.setHeader("X-Content-Type-Options", "nosniff");
     next();
   });
-  app.use(express.json({ limit: "32kb" }));
+  app.use(express.json({ limit: "96kb" }));
   app.get("/api/proxy", (req, res) => handleProxyRequest(req, res));
   const routes = [
     trailRoutes(store, trails),

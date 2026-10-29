@@ -33,6 +33,8 @@ flowchart LR
 7. `shared/ranking.ts`, `briefing.ts` and `pagination.ts` — deterministic retrieval and selection. These can be read and tested without React, SQLite, WebGPU or network access.
 8. `src/App.tsx` — page composition, filters, stable ranked paging and selected story. Components live in `src/components`; `hooks/useFeed.ts` owns API state, and `hooks/useLocalAI.ts` owns the optional model lifecycle.
 
+`src/lib/article.ts` prepares summary sources on demand. Selection only reads saved article text and summary results; requesting a missing summary fetches linked HTML when the feed supplied no excerpt, parses a detached document, and saves bounded text through `/articles/:id`. The local proxy validates public URLs and redirects; static hosting falls back to a CORS request. `readable_articles` is separate from collected items and keyed by item ID, content hash, and canonical URL. Summary routes validate the exact input against the saved article when present. The reader uses the same text and scope label as the model. Cancel aborts article retrieval as well as inference; failures do not cache fabricated text.
+
 ## Follow the research trail code
 
 - `shared/trail.ts`: strict arXiv identity, explicit GitHub URL extraction and a bounded sentence diff. Similar words never become relationship evidence.

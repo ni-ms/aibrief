@@ -1432,6 +1432,9 @@ export default function App() {
                 depth={ai.depth}
                 onDepth={ai.setDepth}
                 summary={ai.summary}
+                articleText={ai.articleText}
+                fetchingArticle={ai.fetchingArticle}
+                articleError={ai.articleError}
                 error={
                   ai.error || (ai.status === "error" ? ai.message : undefined)
                 }
@@ -1446,7 +1449,7 @@ export default function App() {
                   selected ? feed.act(selected, patch) : Promise.resolve(false)
                 }
                 onSummary={() => selected && void ai.summarize([selected])}
-                onModel={() => void ai.enable()}
+                onFetchArticle={() => selected && void ai.fetchArticle(selected)}
                 onCancel={ai.cancel}
                 onBack={() => {
                   const id = selected?.groupId;

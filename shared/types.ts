@@ -58,6 +58,8 @@ export interface CollectedItem {
   links: { label: string; url: string }[];
 }
 export interface Item extends CollectedItem {
+  /** Readable linked article, loaded only on request and cached separately. */
+  articleText?: string;
   id: number;
   groupId: number;
   sourceId: string;

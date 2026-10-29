@@ -80,7 +80,7 @@ export async function summarizeViaEndpoint(
   modelName: string,
   signal?: AbortSignal,
 ): Promise<Summary> {
-  const source = story.abstract || story.releaseText;
+  const source = story.articleText || story.abstract || story.releaseText;
   if (!source.trim()) {
     throw new Error(
       "This source has only a title. Open the original; there is not enough source text to summarize.",
@@ -313,7 +313,7 @@ export class LocalAI {
     depth: SummaryDepth = "standard",
   ): Promise<Summary> {
     if (!this.engine) throw new Error("Load a model to generate a summary.");
-    const source = story.abstract || story.releaseText;
+    const source = story.articleText || story.abstract || story.releaseText;
     if (!source.trim())
       throw new Error(
         "This source has only a title. Open the original; there is not enough source text to summarize.",

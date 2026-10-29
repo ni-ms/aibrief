@@ -14,15 +14,16 @@ import {
 } from "../../shared/summary.ts";
 import { LocalAI, MODELS, summarizeViaEndpoint } from "../local-ai";
 import { api } from "../lib/api";
+import { loadSummarySource } from "../lib/article.ts";
 export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   const [depth, setDepthState] = useState<SummaryDepth>(() => {
     const saved = DepthSchema.safeParse(preferences.get("summary-depth"));
     return saved.success ? saved.data : "standard";
   });
-  const [depthRequested, setDepthRequested] = useState(false);
+  const [depthRequested, setDepthRequested] = useState<number | null>(null);
   function setDepth(value: SummaryDepth) {
     setDepthState(value);
-    setDepthRequested(true);
+    setDepthRequested(story?.id ?? null);
     preferences.set("summary-depth", value);
   }
   const [model, setModelState] = useState(
@@ -44,6 +45,11 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   const [message, setMessage] = useState("");
   const [progress, setProgress] = useState(0);
   const [summaries, setSummaries] = useState<Record<string, Summary>>({});
+  const [articles, setArticles] = useState<Record<string, string>>({});
+  const [fetchingArticle, setFetchingArticle] = useState("");
+  const [articleErrors, setArticleErrors] = useState<Record<string, string>>(
+    {},
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [interestKey, setInterestKey] = useState("");
   const engine = useRef<LocalAI | null>(null),
@@ -52,11 +58,13 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   const working = useRef(false);
   const autoStopped = useRef("");
   const endpointRequest = useRef<AbortController | null>(null);
+  const articleRequest = useRef<AbortController | null>(null);
   useEffect(
     () => () => {
       ++generation.current;
       engine.current?.cancel();
       endpointRequest.current?.abort();
+      articleRequest.current?.abort();
     },
     [],
   );
@@ -95,10 +103,16 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   const activeModelId = endpointUrl.trim()
     ? `endpoint:${endpointModel.trim() || "default"}`
     : model;
+  const sourceKey = (s: Story) => `${s.id}:${s.contentHash}:${s.canonicalUrl}`;
   const key = (s: Story, modelId = activeModelId) =>
     [
       s.id,
-      summaryInput(s, profile ? summaryInterests(profile) : ""),
+      s.contentHash,
+      s.canonicalUrl,
+      summaryInput(
+        { ...s, articleText: s.articleText || articles[sourceKey(s)] },
+        profile ? summaryInterests(profile) : "",
+      ),
       depth,
       modelId,
       PROMPT_VERSION,
@@ -108,12 +122,19 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   useEffect(() => {
     if (!story || !interestKey) return;
     let active = true;
-    api<{ result: Summary } | null>(
-      `/summaries/${story.id}?model=${encodeURIComponent(activeModelId)}&interestKey=${interestKey}&depth=${depth}`,
-    )
-      .then((cached) => {
+    loadSummarySource(story, api, false)
+      .then(async (source) => {
+        if (!active) return;
+        if (source.articleText)
+          setArticles((prior) => ({
+            ...prior,
+            [sourceKey(story)]: source.articleText!,
+          }));
+        const cached = await api<{ result: Summary } | null>(
+          `/summaries/${story.id}?model=${encodeURIComponent(activeModelId)}&interestKey=${interestKey}&depth=${depth}`,
+        );
         if (cached && active)
-          setSummaries((prior) => ({ ...prior, [key(story)]: cached.result }));
+          setSummaries((prior) => ({ ...prior, [key(source)]: cached.result }));
       })
       .catch(() => {})
       .finally(() => {
@@ -127,6 +148,9 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     autoStopped.current = selectedKey;
     ++generation.current;
     endpointRequest.current?.abort();
+    articleRequest.current?.abort();
+    articleRequest.current = null;
+    setFetchingArticle("");
     endpointRequest.current = null;
     loading.current = null;
     working.current = false;
@@ -166,7 +190,10 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
   }
   function enable(): Promise<boolean> {
     if (loading.current) return loading.current;
-    if (status === "ready" || status === "working")
+    if (
+      engine.current?.engine ||
+      (endpointUrl.trim() && (status === "ready" || status === "working"))
+    )
       return Promise.resolve(true);
     autoStopped.current = "";
     if (endpointUrl.trim()) {
@@ -220,36 +247,105 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     return task;
   }
   const [cacheChecked, setCacheChecked] = useState("");
-  async function summarize(stories: Story[]) {
+  async function fetchArticle(item: Story) {
+    if (articleRequest.current || working.current) return;
+    const controller = new AbortController();
+    articleRequest.current = controller;
+    setFetchingArticle(sourceKey(item));
+    setArticleErrors((prior) => ({ ...prior, [sourceKey(item)]: "" }));
+    try {
+      const source = await loadSummarySource(
+        item,
+        api,
+        true,
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setArticles((prior) => ({
+        ...prior,
+        [sourceKey(item)]: source.articleText!,
+      }));
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setArticleErrors((prior) => ({
+          ...prior,
+          [sourceKey(item)]: (error as Error).message,
+        }));
+    } finally {
+      if (articleRequest.current === controller) {
+        articleRequest.current = null;
+        setFetchingArticle("");
+      }
+    }
+  }
+  async function summarize(stories: Story[], fetchMissing = true) {
     if (working.current || !profile || !interestKey) return;
+    articleRequest.current?.abort();
+    articleRequest.current = null;
     working.current = true;
+    setDepthRequested(null);
+    setErrors((prior) => {
+      const next = { ...prior };
+      for (const item of stories) delete next[key(item)];
+      return next;
+    });
+    setArticleErrors((prior) => {
+      const next = { ...prior };
+      for (const item of stories) delete next[sourceKey(item)];
+      return next;
+    });
     autoStopped.current = "";
     let failed = false;
     let current = generation.current;
+    const controller = new AbortController();
+    endpointRequest.current = controller;
+    setStatus("working");
     try {
-      if (status !== "ready") {
-        const task = enable();
-        current = generation.current;
-        const loaded = await task;
-        if (!loaded || current !== generation.current) return;
-      }
-      setStatus("working");
-      const summaryModelId = endpointUrl.trim()
+      let summaryModelId = endpointUrl.trim()
         ? activeModelId
         : engine.current?.modelId || model;
-      const controller = new AbortController();
-      endpointRequest.current = controller;
-      for (const [index, item] of stories
-        .filter((s) => s.abstract || s.releaseText)
+      for (const [index, original] of stories
+        .filter((s) => fetchMissing || s.abstract || s.releaseText)
         .slice(0, 10)
         .entries()) {
         if (current !== generation.current) break;
         setMessage(`Reading ${index + 1}…`);
+        let item = original;
         try {
+          const needsArticle = !original.abstract && !original.releaseText;
+          if (needsArticle && fetchMissing) {
+            setMessage("Fetching readable article…");
+            setFetchingArticle(sourceKey(original));
+          }
+          item = await loadSummarySource(
+            original,
+            api,
+            needsArticle && fetchMissing,
+            controller.signal,
+          );
+          if (current !== generation.current) break;
+          setFetchingArticle("");
+          if (item.articleText)
+            setArticles((prior) => ({
+              ...prior,
+              [sourceKey(item)]: item.articleText!,
+            }));
           const cached = await api<{ result: Summary } | null>(
             `/summaries/${item.id}?model=${encodeURIComponent(summaryModelId)}&interestKey=${interestKey}&depth=${depth}`,
           );
           if (current !== generation.current) break;
+          if (!cached && !endpointUrl.trim() && !engine.current?.engine) {
+            const task = enable();
+            current = generation.current;
+            const loaded = await task;
+            if (!loaded || current !== generation.current) {
+              failed = true;
+              return;
+            }
+            summaryModelId = engine.current?.modelId || model;
+          }
+          setStatus("working");
+          setMessage(`Summarizing ${index + 1}…`);
           const result =
             cached?.result ||
             (endpointUrl.trim()
@@ -304,26 +400,33 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
       if (current === generation.current) {
         working.current = false;
         endpointRequest.current = null;
+        setFetchingArticle("");
         if (!failed && (engine.current || endpointUrl.trim())) {
           setStatus("ready");
           setMessage("Ready.");
+        } else if (!failed) {
+          setStatus("off");
+          setMessage("");
         }
       }
     }
   }
   useEffect(() => {
     if (
-      (preferred || depthRequested) &&
-      status === "ready" &&
+      (preferred || depthRequested === story?.id) &&
+      (status === "ready" ||
+        (depthRequested === story?.id &&
+          status !== "working" &&
+          status !== "loading")) &&
       story &&
       interestKey &&
       cacheChecked === key(story) &&
       !summaries[key(story)] &&
       !errors[key(story)] &&
       autoStopped.current !== key(story) &&
-      (story.abstract || story.releaseText)
+      (story.abstract || story.releaseText || depthRequested === story.id)
     )
-      void summarize([story]);
+      void summarize([story], depthRequested === story.id);
   }, [
     preferred,
     depthRequested,
@@ -351,6 +454,10 @@ export function useLocalAI(profile: Profile | undefined, story: Story | null) {
     enable,
     cancel,
     summarize,
+    articleText: story ? articles[sourceKey(story)] : undefined,
+    fetchingArticle: !!story && fetchingArticle === sourceKey(story),
+    articleError: story ? articleErrors[sourceKey(story)] : undefined,
+    fetchArticle,
     summary: story ? summaries[key(story)] : undefined,
     error: story ? errors[key(story)] : undefined,
   };
